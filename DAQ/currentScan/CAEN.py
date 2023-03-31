@@ -1,0 +1,152 @@
+#Class to use the functions of the CAEN HV wrapper library
+import ctypes #for C++ function binding (CAEN HV library for example)
+import pathlib
+import time
+import sys
+
+#import caen HV wrapper library
+libname = "/lib/libcaenhvwrapper.so.6.3"
+CAENhvLib = ctypes.CDLL(libname)
+
+c_ushort_p = ctypes.POINTER(ctypes.c_ushort)
+
+MAX_ATTEMPTS = 5 #maximum connection trals before giving up
+
+class CAEN:
+
+	#CAEN class constructor
+	def __new__(cls, *args, **kwargs):
+		return super().__new__(cls)
+
+	def __init__(self, address, user, password):
+		self.address = address
+		self.user = user
+		self.password = password
+
+	def __repr__(self) -> str:
+		return f"{type(self).__name__}(address={self.address}, user={self.user}, password={self.password})"
+
+	#Open connection with CAEN module
+	def connect(self):
+		cIp = ctypes.c_char_p(self.address)
+		cUser = ctypes.c_char_p(self.user)
+		cPassword = ctypes.c_char_p(self.password)
+
+		handle = ctypes.c_int() #handle defined as int
+
+		#pythonic definition of init system function
+		pyCAENinit = CAENhvLib.CAENHV_InitSystem
+		pyCAENinit.argtypes = [ctypes.c_int,ctypes.c_int,ctypes.c_void_p,ctypes.c_char_p,ctypes.c_char_p,ctypes.POINTER(ctypes.c_int)]
+		pyCAENinit.restype = ctypes.c_int
+		
+		ret = pyCAENinit(0,0,cIp,cUser,cPassword,ctypes.pointer(handle))
+
+		#Connection not yet established, try 5 times and then give up
+		attempts = 1 #Keep track of connection attempts 
+		while ret != 0:
+			if attempts <= MAX_ATTEMPTS:
+				print("Connection not yet established")
+				print("Retrying:")
+				print("Attempt #:",attempts, " out of ",MAX_ATTEMPTS)
+				ret = pyCAENinit(0,0,cIp,cUser,cPassword,ctypes.pointer(handle))
+				attempts = attempts+1
+				time.sleep(2)
+			else:
+				print("Max number of attempts reached (",MAX_ATTEMPTS,")")
+				print("Giving up, check CAEN Connection")
+				sys.exit("Exiting current scan")
+		
+		print("ret:",ret)	
+
+		#pyCAENsetChName = CAENhvLib.CAENHV_SetChName
+		#pyCAENsetChName.argtypes = [ctypes.c_int,ctypes.c_ushort,ctypes.c_ushort,c_ushort_p,ctypes.c_char_p]
+		#pyCAENsetChName.restype = ctypes.c_int
+		#ret2 = pyCAENsetChName(handle,8,1,c_ushort_p(ctypes.c_ushort(2)),b"test2")
+		#print("ret2:"ret2)
+
+		#Return the handle for future connection (to the main function)
+		return handle
+
+
+	#disconnect from CAEN HV module
+	def disconnect(self,handle):
+		pyCAENend = CAENhvLib.CAENHV_DeinitSystem
+		pyCAENend.argtypes = [ctypes.c_int]
+		pyCAENend.restype = ctypes.c_int
+		ret3 = pyCAENend(handle)
+
+		print("ret3:",ret3)
+
+	#Set CAEN HV parameter
+	def setParameter(self,handle,slot,paramName,channel,paramValue):
+		#Define as c++ like variables
+		cSlot = ctypes.c_ushort(slot)
+		cParamName = ctypes.c_char_p(paramName)
+		cChannel = ctypes.c_ushort(channel)
+
+		if isinstance(paramValue,int):
+			cParamValue = ctypes.c_int(paramValue)
+		else:
+			cParamValue = ctypes.c_float(paramValue)
+
+		pyCAENsetChParam = CAENhvLib.CAENHV_SetChParam
+		pyCAENsetChParam.argtypes = [ctypes.c_int,ctypes.c_ushort,ctypes.c_char_p,ctypes.c_ushort,c_ushort_p,ctypes.c_void_p]
+		pyCAENsetChParam.restype = ctypes.c_int
+
+		print("UP to here")
+		print("handle in paramSet:",handle)
+		print(cParamValue.value)
+		print(cParamName.value)
+
+		ret4 = pyCAENsetChParam(handle,cSlot,cParamName,1,ctypes.pointer(cChannel),ctypes.pointer(cParamValue))
+
+		print("ret4:",ret4)
+
+	#Get CAEN HV parameter
+	#Status 3 = ramp UP, 1 = ch on, 5 = ramp DOWN
+	def getParameter(self,handle,slot,paramName,channel):
+		cSlot = ctypes.c_ushort(slot)
+		cParamName = ctypes.c_char_p(paramName)
+		cChannel = ctypes.c_ushort(channel)
+
+		print(paramName)
+
+		pyCAENgetChParam = CAENhvLib.CAENHV_GetChParam
+		pyCAENgetChParam.argtypes = [ctypes.c_int,ctypes.c_ushort,ctypes.c_char_p,ctypes.c_ushort,c_ushort_p,ctypes.c_void_p]
+		pyCAENgetChParam.restype = ctypes.c_int
+
+		if paramName == b"V0Set" or paramName == b"I0Set" or paramName == b"V1Set" or paramName == b"Rup" or paramName == b"RDWn" or paramName == b"Trip" or paramName == b"SVMax" or paramName == b"VMon" or paramName == b"IMon":
+			param = (ctypes.c_float*1)()
+		elif paramName == b"Status" or paramName == b"Pw" or paramName == b"Pon" or paramName == b"PDwn":
+			param = (ctypes.c_int*1)()
+		else:
+			print("Wrong variable name")
+			sys.exit("Exiting current scan")
+
+		ret5 = pyCAENgetChParam(handle,cSlot,cParamName,1,ctypes.pointer(cChannel),ctypes.pointer(param))
+
+		print(param[0])
+
+		print("ret5:",ret5)
+
+		return param[0]
+
+	def getChName(self,handle,slot,channel):
+		cSlot = ctypes.c_ushort(slot)
+		cChannel = ctypes.c_ushort(channel)
+
+		cChannelName = ctypes.c_char_p()
+
+		pyCAENgetChName = CAENhvLib.CAENHV_GetChName
+		pyCAENgetChName.argtypes = [ctypes.c_int,ctypes.c_ushort,ctypes.c_ushort,c_ushort_p,ctypes.c_char_p]
+		pyCAENgetChName.restype = ctypes.c_int
+
+		ret6 = pyCAENgetChName(handle,cSlot,1,ctypes.pointer(cChannel),cChannelName)
+
+		print(cChannelName)
+
+
+
+
+
+		
