@@ -5,7 +5,8 @@ import time
 import sys
 
 #import caen HV wrapper library
-libname = "/lib/libcaenhvwrapper.so.6.3"
+#libname = "/lib/libcaenhvwrapper.so.6.3"
+libname = "/usr/lib64/libcaenhvwrapper.so.6.3"
 CAENhvLib = ctypes.CDLL(libname)
 
 c_ushort_p = ctypes.POINTER(ctypes.c_ushort)

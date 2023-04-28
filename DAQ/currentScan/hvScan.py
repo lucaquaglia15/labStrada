@@ -64,7 +64,7 @@ def main():
     mydb = mysql.connector.connect( #db object
         host="localhost",
         user="root",
-        password="Bello_figo97",
+        password="pcald32",
         database="labStrada"
     )
     mycursor = mydb.cursor()
@@ -102,7 +102,7 @@ def main():
     totChannels = sum([len(i) for i in channels])
 
     #Get the configuration of the run from the config file
-    with open("/home/luca/cernbox/arduinoCodes/labTurin/configExample.txt") as configFile:
+    with open("/home/pcald32/labStrada/config/configExample.txt") as configFile:
         scanPoints = configFile.readlines()
         scanPoints.pop(0)
         
@@ -126,7 +126,7 @@ def main():
         print(effHV)
     
     #Define CAEN HV module object (according to CAEN.py class) and try to connect to it
-    hvModule = CAEN(b"128.141.151.206",b"admin",b"admin")
+    hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
     handle = hvModule.connect()
 
     #Set channel name and switch HV on
@@ -192,7 +192,7 @@ def main():
         lastDate = lastEnv[0][0]
         delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-        while delta > 10:
+        while delta > 1200: #1200 s = logger stopped for more than 20 minutes
             mydb.cmd_refresh(1)
             lastEnv = getPT(mycursor)
             lastDate = lastEnv[0][0]
@@ -247,10 +247,10 @@ def main():
             lastDate = lastEnv[0][0]
             delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-            while delta > 10:
+            while delta > 1200:
                 t_end = t_end + 3 #this is needed because the way to measure residual time is to compute t_end before the start of measuring time
                 #but even if the PT logging is stopped, the time still passes. In this way we extend the end of run by 3 seconds, which is the waiting
-                #time at the end of (while delta > 10). This is precise to ~0.1 s, it can be improved by measuring how long the loop is but for the moment
+                #time at the end of (while delta > 1200). This is precise to ~0.1 s, it can be improved by measuring how long the loop is but for the moment
                 #it is good enough
                 mydb.cmd_refresh(1)
                 lastEnv = getPT(mycursor)

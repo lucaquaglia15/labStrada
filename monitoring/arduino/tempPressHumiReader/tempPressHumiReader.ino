@@ -33,7 +33,7 @@ void setup() {
   }
   
   //Serial.println("-- Default Test --");
-  delayTime = 10000;
+  delayTime = 600000;
 
   //Serial.println();
 }

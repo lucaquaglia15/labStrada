@@ -6,10 +6,13 @@ waitTime = []
 
 measureInt = 2 #seconds, how often CAEN parameters are measured, also how often PT correction is executed
 
-slot = [4,8] #HV slots
-channels = [[5],[2,3]] #HV channels
+#slot = [4,8] #HV slots
+#channels = [[5],[2,3]] #HV channels
+slot = [3] #HV slots
+channels = [[9,10,11]] #HV channels
+
 effHV = [[] for x in range(len(slot))] #Effective HV
 
 names = [[b"test-1"],[b"test-2",b"test-3"]]
 
-caenIPaddress = "0.0.0.0"
+caenIPaddress = "90.147.203.174"
