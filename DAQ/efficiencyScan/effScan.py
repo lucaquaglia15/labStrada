@@ -1,10 +1,11 @@
-import constants #constants
-from CAEN import CAEN #Python version of CAEN HV wrapper library
+#import constants #constants
+from VME import VME #Python version of CAEN HV wrapper library
+from TDC import TDC #Functions specific to the V488A TDC module
 import numpy as np #numpy
 import ctypes #for C++ function binding (CAEN HV library for example)
 import pathlib #for library paths (to use C++ libraries in python)
 import mysql.connector #to connect to db to send the data
-import ROOT #Root CERN functions
+#import ROOT #Root CERN functions
 import time #For functions such as sleep
 import datetime #To get date, time and perform operations on them
 import os #To create new folders and so on
@@ -12,6 +13,7 @@ import sys #To perform system operation
 
 debug = False
 
+"""
 #Error function with different severity
 def error(severity):
     if severity == 0:
@@ -55,16 +57,28 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
         ramping = False
 
     return ramping
+"""
 
 #main function for current scan
 def main():
 
-    print("---HV scan starting---")
+    print("---Efficiency scan starting---")
 
+    print("Getting configuration file for V488A TDC")
+
+    #first argument is board type (0 = V1718 or 1 = V2718), second argument is the link number and third argument is the conet node
+    #cLinkNumber = ctypes.c_uint32(0)
+    #VMEbridge = VME(1,cLinkNumber,0)
+    VMEbridge = VME(1,0,0)
+    handle = VMEbridge.connect()
+
+    #handle, base address, address, data, address modifier, data width
+    VMEbridge.write(handle,0x01000000,0x1A,0x7C,0x2D,0x04)
+    """
     mydb = mysql.connector.connect( #db object
         host="localhost",
         user="root",
-        password="pcald32",
+        password="Bello_figo97",
         database="labStrada"
     )
     mycursor = mydb.cursor()
@@ -85,7 +99,7 @@ def main():
     #sendRunConfig = "INSERT INTO .. VALUES (%s)"
 
     #Create folder to save the data locally
-    newPath = "/home/pcald32/runs/currentScans/scan_"+str(newRun) 
+    newPath = "/home/luca/cernbox/arduinoCodes/labTurin/currentScans/scan_"+str(newRun) 
     if not os.path.exists(newPath):
         os.makedirs(newPath)
 
@@ -102,7 +116,7 @@ def main():
     totChannels = sum([len(i) for i in channels])
 
     #Get the configuration of the run from the config file
-    with open("/home/pcald32/labStrada/config/configExample.txt") as configFile:
+    with open("/home/luca/cernbox/arduinoCodes/labTurin/configExample.txt") as configFile:
         scanPoints = configFile.readlines()
         scanPoints.pop(0)
         
@@ -126,7 +140,7 @@ def main():
         print(effHV)
     
     #Define CAEN HV module object (according to CAEN.py class) and try to connect to it
-    hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
+    hvModule = CAEN(b"128.141.151.206",b"admin",b"admin")
     handle = hvModule.connect()
 
     #Set channel name and switch HV on
@@ -146,7 +160,7 @@ def main():
             print(i)
     
         print("Scanning point:",i+1)
-        scanFol = "/home/pcald32/runs/currentScans/scan_"+str(newRun)+"/HV_"+str(i+1)
+        scanFol = "/home/luca/cernbox/arduinoCodes/labTurin/currentScans/scan_"+str(newRun)+"/HV_"+str(i+1)
         if not os.path.exists(scanFol):
             os.makedirs(scanFol)
 
@@ -192,7 +206,7 @@ def main():
         lastDate = lastEnv[0][0]
         delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-        while delta > 15: #1200 s = logger stopped for more than 20 minutes
+        while delta > 10:
             mydb.cmd_refresh(1)
             lastEnv = getPT(mycursor)
             lastDate = lastEnv[0][0]
@@ -247,10 +261,10 @@ def main():
             lastDate = lastEnv[0][0]
             delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-            while delta > 15:
+            while delta > 10:
                 t_end = t_end + 3 #this is needed because the way to measure residual time is to compute t_end before the start of measuring time
                 #but even if the PT logging is stopped, the time still passes. In this way we extend the end of run by 3 seconds, which is the waiting
-                #time at the end of (while delta > 1200). This is precise to ~0.1 s, it can be improved by measuring how long the loop is but for the moment
+                #time at the end of (while delta > 10). This is precise to ~0.1 s, it can be improved by measuring how long the loop is but for the moment
                 #it is good enough
                 mydb.cmd_refresh(1)
                 lastEnv = getPT(mycursor)
@@ -314,7 +328,7 @@ def main():
         hFlow.Write("Flow_HV_"+str(i+1))
         fOutDIP.Close()
 
-        os.chdir("/home/pcald32/labStrada/DAQ/currentScan")
+        os.chdir("/home/luca/cernbox/arduinoCodes/labTurin")
 
         #Reset names and increase HV point counter
         dipOut = "scan_"+str(newRun)+"_DIP_"
@@ -328,6 +342,7 @@ def main():
 
     hvModule.disconnect(handle)
     print("Disconnected from HV module")
+"""
     
 if __name__ == "__main__":
     main()

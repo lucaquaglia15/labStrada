@@ -113,6 +113,7 @@ class CAEN:
 
 		return param[0]
 
+	#Set channel name
 	def setChName(self,handle,slot,channel,name):
 		cSlot = ctypes.c_ushort(slot)
 		cChannel = ctypes.c_ushort(channel)
@@ -122,4 +123,19 @@ class CAEN:
 		pyCAENsetChName.argtypes = [ctypes.c_int,ctypes.c_ushort,ctypes.c_ushort,c_ushort_p,ctypes.c_char_p]
 		pyCAENsetChName.restype = ctypes.c_int
 		ret2 = pyCAENsetChName(handle,cSlot,1,ctypes.pointer(cChannel),cName)
+
+	#Get channel name
+	def getChName(self,handle,slot,channel):
+
+		cSlot = ctypes.c_ushort(slot)
+		cChannel = ctypes.c_ushort(channel)
+		cName = ctypes.create_string_buffer(12) 
+
+		pyCAENgetChName = CAENhvLib.CAENHV_GetChName
+		pyCAENgetChName.argtypes = [ctypes.c_int,ctypes.c_ushort,ctypes.c_ushort,c_ushort_p,ctypes.c_char_p]
+		pyCAENgetChName.restype = ctypes.c_int
+
+		ret6 = pyCAENgetChName(handle,cSlot,1,ctypes.pointer(cChannel),cName)
+
+		return cName.value
 		

@@ -8,11 +8,11 @@ measureInt = 2 #seconds, how often CAEN parameters are measured, also how often 
 
 #slot = [4,8] #HV slots
 #channels = [[5],[2,3]] #HV channels
-slot = [3] #HV slots
-channels = [[9,10,11]] #HV channels
+slot = [7] #HV slots
+channels = [[0]] #HV channels
 
 effHV = [[] for x in range(len(slot))] #Effective HV
 
-names = [[b"test-1"],[b"test-2",b"test-3"]]
+names = [[b"ECOgas"]]
 
 caenIPaddress = "90.147.203.174"
