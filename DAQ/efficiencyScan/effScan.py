@@ -1,6 +1,6 @@
 #import constants #constants
 from VME import VME #Python version of CAEN HV wrapper library
-from TDC import TDC #Functions specific to the V488A TDC module
+#from TDC import TDC #Functions specific to the V488A TDC module
 import numpy as np #numpy
 import ctypes #for C++ function binding (CAEN HV library for example)
 import pathlib #for library paths (to use C++ libraries in python)
@@ -67,13 +67,24 @@ def main():
     print("Getting configuration file for V488A TDC")
 
     #first argument is board type (0 = V1718 or 1 = V2718), second argument is the link number and third argument is the conet node
-    #cLinkNumber = ctypes.c_uint32(0)
-    #VMEbridge = VME(1,cLinkNumber,0)
     VMEbridge = VME(1,0,0)
     handle = VMEbridge.connect()
 
+    #VMEbridge.read(handle,0x02000000,0xFC,0x0D,0x02) #this works
+    BA = 0x02000000 #base address
+    AD = 0xFE #address
+    AM = 0x0D #address modifier
+    DW = 0x02 #data width
+    VMEbridge.read(handle,BA,AD,AM,DW) #general call to the read function
+
+    #Test of the write function
+
+    #VMEbridge.write()
+
+    VMEbridge.disconnect(handle)
+
     #handle, base address, address, data, address modifier, data width
-    VMEbridge.write(handle,0x01000000,0x1A,0x7C,0x2D,0x04)
+    #VMEbridge.write(handle,0x01000000,0x1A,0x7C,0x2D,0x04)
     """
     mydb = mysql.connector.connect( #db object
         host="localhost",

@@ -63,10 +63,23 @@ class VME:
 		print(VMEcodes[ret])
 
 		return handle
+	
+	def disconnect(self,handle):
+
+		pyVMEend = CAENVMELib.CAENVME_End
+		pyVMEend.argtypes = [ctypes.c_int]
+		pyVMEend.restype = ctypes.c_int
+
+		ret2 = pyVMEend(handle)
+
+		print(VMEcodes[ret2])
 
 	#Write data at given address
 	#handle, address, data, address modifier, data width
 	def write(self,handle,baseAddress,address,data,AM,DW):
+
+		print("Writing baseAddress",hex(baseAddress),"address",hex(address))
+
 
 		#if DW != 0x01 or DW != 0x02 or DW != 0x04 or DW != 0x08:
 		#	sys.exit("Sorry wrong data width, exiting")
@@ -87,15 +100,16 @@ class VME:
 		pyVMEwrite.argtypes = [ctypes.c_int,ctypes.c_uint32,ctypes.c_void_p,ctypes.c_uint,ctypes.c_uint]
 		pyVMEwrite.restype = ctypes.c_int
 
-		ret2 = pyVMEwrite(handle,cAddress,ctypes.pointer(cData),cAM,cDW)
+		ret3 = pyVMEwrite(handle,cAddress,ctypes.pointer(cData),cAM,cDW)
 
-		print(VMEcodes[ret2])
+		print(VMEcodes[ret3])
 
 	#Perform read cycle at given address
-	def read(self,handle,baseAddress,address,data,AM,DW):
+	def read(self,handle,baseAddress,address,AM,DW):
+
+		print("Reading baseAddress",hex(baseAddress),"address",hex(address))
 		
 		cAddress = ctypes.c_uint32(baseAddress+address)
-		cData = ctypes.c_uint(data)
 		cAM =  ctypes.c_uint(AM)
 		cDW =  ctypes.c_uint(DW)
 
@@ -103,13 +117,15 @@ class VME:
 		pyVMEread.argtypes = [ctypes.c_int,ctypes.c_uint32,ctypes.c_void_p,ctypes.c_uint,ctypes.c_uint]
 		pyVMEread.restype = ctypes.c_int
 
-		ret3 = pyVMEwrite(handle,cAddress,ctypes.pointer(cData),cAM,cDW)
+		cData = ctypes.c_uint()
 
-		print(VMEcodes[ret3])
+		ret4 = pyVMEread(handle,cAddress,ctypes.pointer(cData),cAM,cDW)
 
-		#return cData.value
+		print(VMEcodes[ret4])
+		print("Result of read",hex(cData.value))
+		return cData.value
 
-	
+	"""
 	#Functions for ease of use with the V2718 module
 	def statusRegister(baseAddress,address): #r/w, BA + 0x00, D16
 
@@ -134,4 +150,4 @@ class VME:
 	def inputMultiplexerSetRegister(): #r/w, BA + 0x0B, D16
 
 	def inputMultiplexerClearRegister() #w, BA + 0x11, D16
-	
+	"""
