@@ -155,6 +155,19 @@ class VME:
 		print("ret6",ret6)
 		print(VMEcodes[ret6])
 
+	#Stop pulser via software
+	def stopPulser(self,handle,pulSel):
+
+		cPulSel = ctypes.c_uint(pulSel)
+
+		pyVMEstopPulser = CAENVMELib.CAENVME_StopPulser
+		pyVMEstopPulser.argtypes = [ctypes.c_int,ctypes.c_uint]
+		pyVMEstopPulser.restype = ctypes.c_int
+
+		ret7 = pyVMEstopPulser(handle,cPulSel)
+		print("ret7",ret7)
+		print(VMEcodes[ret7])
+
 	#Set configuration of bridge output
 	def setOutputConf(self,handle,outputSel,outputPol,ledPolarity,ioSource):
 

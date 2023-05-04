@@ -69,6 +69,7 @@ def main():
     #first argument is board type (0 = V1718 or 1 = V2718), second argument is the link number and third argument is the conet node
     VMEbridge = VME(1,0,0)
     handle = VMEbridge.connect()
+    
     """
     #VMEbridge.read(handle,0x02000000,0xFC,0x0D,0x02) #this works
     BA = 0x02000000 #base address
@@ -77,17 +78,23 @@ def main():
     DW = 0x02 #data width
     VMEbridge.read(handle,BA,AD,AM,DW) #general call to the read function
 
+    
     #Test of the write function
     VMEbridge.write(handle,BA,0x1A,0x8000,AM,DW)
 
     VMEbridge.read(handle,BA,0x1A,AM,DW)
     """
-    VMEbridge.setOutputConf(handle,0,0,0,0)
-    VMEbridge.configPulser(handle,0,2,1,0,0,0,0)
+    
+    #VMEbridge.configPulser(handle,0,1,2,0,0,0,0)
+    VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
+    VMEbridge.setOutputConf(handle,0,0,0,6)
     VMEbridge.startPulser(handle,0)
+    print("Waiting 5 seconds")
+    time.sleep(30)
+    VMEbridge.stopPulser(handle,0)
 
-    VMEbridge.enableIRQ(handle,111)
-    VMEbridge.checkIRQ(handle)
+    #VMEbridge.enableIRQ(handle,111)
+    #VMEbridge.checkIRQ(handle)
 
     VMEbridge.disconnect(handle)
     """
