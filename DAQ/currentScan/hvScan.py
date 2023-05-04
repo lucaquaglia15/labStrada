@@ -192,7 +192,7 @@ def main():
         lastDate = lastEnv[0][0]
         delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-        while delta > 15: #1200 s = logger stopped for more than 20 minutes
+        while delta > 1200: #1200 s = logger stopped for more than 20 minutes
             mydb.cmd_refresh(1)
             lastEnv = getPT(mycursor)
             lastDate = lastEnv[0][0]
@@ -228,12 +228,17 @@ def main():
             time.sleep(2)
 
         print("Ramping completed")
+
+        hvModule.disconnect(handle)
     
         #Wait for waiting time
         print("Waiting for waiting time")
         print(constants.waitTime[i],"s")
         time.sleep(int(constants.waitTime[i]))
         print("Waiting time over")
+
+        hvModule.connect()
+        time.sleep(2)
 
         #Start measuring
         print("Starting measurement")
@@ -247,7 +252,7 @@ def main():
             lastDate = lastEnv[0][0]
             delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-            while delta > 15:
+            while delta > 1200:
                 t_end = t_end + 3 #this is needed because the way to measure residual time is to compute t_end before the start of measuring time
                 #but even if the PT logging is stopped, the time still passes. In this way we extend the end of run by 3 seconds, which is the waiting
                 #time at the end of (while delta > 1200). This is precise to ~0.1 s, it can be improved by measuring how long the loop is but for the moment

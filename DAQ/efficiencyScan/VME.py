@@ -80,21 +80,16 @@ class VME:
 
 		print("Writing baseAddress",hex(baseAddress),"address",hex(address))
 
+		#if hex(AM) != 0x3D or hex(AM) != 0x39 or hex(AM) != 0x0D or hex(AM) != 0x09:
+		#	sys.exit("Wrong address modifier for the CAEN TDC, exiting")
 
 		#if DW != 0x01 or DW != 0x02 or DW != 0x04 or DW != 0x08:
 		#	sys.exit("Sorry wrong data width, exiting")
-		print("Type of baseAddress in write function",type(baseAddress))
-		print("Type of address in write function",type(address))
 
 		cAddress = ctypes.c_uint32(baseAddress+address)
 		cData = ctypes.c_uint(data)
 		cAM =  ctypes.c_uint(AM)
 		cDW =  ctypes.c_uint(DW)
-
-		print("cAddress in write function",cAddress)
-		print("baseAddress in write function",hex(baseAddress))
-		print("address in write function",hex(address))
-		print("total address in write function",hex(baseAddress + address))
 
 		pyVMEwrite = CAENVMELib.CAENVME_WriteCycle
 		pyVMEwrite.argtypes = [ctypes.c_int,ctypes.c_uint32,ctypes.c_void_p,ctypes.c_uint,ctypes.c_uint]
@@ -124,6 +119,100 @@ class VME:
 		print(VMEcodes[ret4])
 		print("Result of read",hex(cData.value))
 		return cData.value
+
+	#Configure VME bridge pulse
+	# pulSel = 0 -> pulser A, pulSel = 1 -> pulser B
+	# unit = 0 -> units of 25 ns, 1 -> units of 1.6 microseconds, 2 -> units of 410 microseconds
+	# unit = 3 -> units of 104 milliseconds, 4 -> units of 25 microseconds	
+	def configPulser(self,handle,pulSel,period,width,unit,pulseNum,start,reset):
+
+		cPulSel = ctypes.c_uint(pulSel)
+		cPeriod = ctypes.c_ubyte(period)
+		cWidth = ctypes.c_ubyte(width)
+		cUnit = ctypes.c_uint(unit)
+		cPulseNum = ctypes.c_uint(pulseNum)
+		cStart = ctypes.c_uint(start)
+		cReset = ctypes.c_uint(reset)
+
+		pyVMEconfigPulser = CAENVMELib.CAENVME_SetPulserConf
+		pyVMEconfigPulser.argtypes = [ctypes.c_int,ctypes.c_uint,ctypes.c_ubyte,ctypes.c_ubyte,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint]
+		pyVMEconfigPulser.restype = ctypes.c_int
+
+		ret5 = pyVMEconfigPulser(handle,cPulSel,cPeriod,cWidth,cUnit,cPulseNum,cStart,cReset)
+		print("ret5",ret5)
+		print(VMEcodes[ret5])
+
+	#Start pulser via software
+	def startPulser(self,handle,pulSel):
+
+		cPulSel = ctypes.c_uint(pulSel)
+
+		pyVMEstartPulser = CAENVMELib.CAENVME_StartPulser
+		pyVMEstartPulser.argtypes = [ctypes.c_int,ctypes.c_uint]
+		pyVMEstartPulser.restype = ctypes.c_int
+
+		ret6 = pyVMEstartPulser(handle,cPulSel)
+		print("ret6",ret6)
+		print(VMEcodes[ret6])
+
+	#Set configuration of bridge output
+	def setOutputConf(self,handle,outputSel,outputPol,ledPolarity,ioSource):
+
+		cOutputSel = ctypes.c_uint(outputSel)
+		cOutputPol = ctypes.c_uint(outputPol)
+		cLedPolarity = ctypes.c_uint(ledPolarity)
+		cIOsource = ctypes.c_uint(ioSource)
+
+		pyVMEsetOutputConf = CAENVMELib.CAENVME_SetOutputConf
+		pyVMEsetOutputConf.argtypes = [ctypes.c_int,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint]
+		pyVMEsetOutputConf.restype = ctypes.c_int
+
+		ret7 = pyVMEsetOutputConf(handle,cOutputSel,cOutputPol,cLedPolarity,cIOsource)
+		print("ret7",ret7)
+		print(VMEcodes[ret7])
+
+	#Enable IRQ status check
+	def enableIRQ(self,handle,mask):
+
+		cMask = ctypes.c_int(mask)
+
+		pyVMEenableIRQ = CAENVMELib.CAENVME_IRQEnable
+		pyVMEenableIRQ.argtypes = [ctypes.c_int,ctypes.c_int]
+		pyVMEenableIRQ.restype = ctypes.c_int
+
+		ret8 = pyVMEenableIRQ(handle,cMask)
+		print("ret8",ret8)
+		print(VMEcodes[ret8])
+
+	
+	#Check IRQ status
+	def checkIRQ(self,handle):
+
+		cMaskOut = ctypes.c_int()
+
+		pyVMEcheckIRQ = CAENVMELib.CAENVME_IRQCheck
+		pyVMEcheckIRQ.argtypes = [ctypes.c_int,ctypes.POINTER(ctypes.c_int)]
+		pyVMEcheckIRQ.restype = ctypes.c_int
+
+		ret9 = pyVMEcheckIRQ(handle,ctypes.pointer(cMaskOut))
+		print(hex(cMaskOut.value))
+		print("ret9",ret9)
+		print(VMEcodes[ret9])
+		return cMaskOut.value
+
+	def IRQacknowledge(hself,handle,IRQlevel,DW):
+
+		cIRQlevel = ctypes.c_uint(IRQlevel)
+		cDW = ctypes.c_uint(DW)
+
+		ret10 = pyVMEintAck = CAENVMELib.CAENVME_IACKCycle
+		pyVMEintAck.argtypes = [ctypes.c_int]
+		pyVMEintAck.restype = ctypes.c_int
+
+		ret10 = pyVMEintAck()
+		print("ret10",ret10)
+		print(VMEcodes[ret10])
+
 
 	"""
 	#Functions for ease of use with the V2718 module

@@ -9,7 +9,7 @@ measureInt = 2 #seconds, how often CAEN parameters are measured, also how often 
 #slot = [4,8] #HV slots
 #channels = [[5],[2,3]] #HV channels
 slot = [7] #HV slots
-channels = [[0]] #HV channels
+channels = [[1]] #HV channels
 
 effHV = [[] for x in range(len(slot))] #Effective HV
 
