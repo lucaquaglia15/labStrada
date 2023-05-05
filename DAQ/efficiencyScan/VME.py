@@ -239,30 +239,67 @@ class VME:
 		print("ret11",ret11)
 		print(VMEcodes[ret11])
 
+	def confScaler(self,handle,limit,autoReset,hit,gate,reset):
+		cLimit = ctypes.c_short(limit)
+		cAutoReset = ctypes.c_short(autoReset)
+		cHit = ctypes.c_uint(hit)
+		cGate = ctypes.c_uint(gate)
+		cReset = ctypes.c_uint(reset)
 
-	"""
-	#Functions for ease of use with the V2718 module
-	def statusRegister(baseAddress,address): #r/w, BA + 0x00, D16
+		pyVMEconfScaler = CAENVMELib.CAENVME_SetScalerConf
+		pyVMEconfScaler.argtypes = [ctypes.c_int,ctypes.c_short,ctypes.c_short,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint]
+		pyVMEconfScaler.restype = ctypes.c_int
 
-	def controlRegister(): #r/w, BA + 0x01, D16
+		ret12 = pyVMEconfScaler(handle,cLimit,cAutoReset,cHit,cGate,cReset)
+		print("ret12",ret12)
+		print(VMEcodes[ret12])
 
-	def fwRevisionRegister(): #r, BA + 0x02, D16
+		
+	def resetScalerCount(self,handle):
 
-	def fwDownladRegister(): #r/w, BA + 0x03, D16
+		pyVMEresetScalerCount = CAENVMELib.CAENVME_ResetScalerCount
+		pyVMEresetScalerCount.argtypes = [ctypes.c_int]
+		pyVMEresetScalerCount.restype = ctypes.c_int
+        
+		ret13 = pyVMEresetScalerCount(handle)
+		print("ret13",ret13)
+		print(VMEcodes[ret13])
 
-	def flashEnableRegister(): #r/w, BA + 0x04, D16
+	def enableScalerGate(self,handle):
 
-	def IRQStatusRegister(): #r, BA + 0x05, D16
+		pyVMEenableScalerGate = CAENVMELib.CAENVME_EnableScalerGate
+		pyVMEenableScalerGate.argtypes = [ctypes.c_int]
+		pyVMEenableScalerGate.restype = ctypes.c_int
 
-	def IRQMaskRegister(): #r/w, BA + 0x06, D16
+		ret14 = pyVMEenableScalerGate(handle)
+		print("ret14",ret14)
+		print(VMEcodes[ret14])
 
-	def inputRegister(): #r/w, BA + 0x0A, D16
+	def disableScalerGate(self,handle):
 
-	def outputSetRegister(): #r/w, BA + 0x0A, D16
+		pyVMEdisableScalerGate = CAENVMELib.CAENVME_DisableScalerGate
+		pyVMEdisableScalerGate.argtypes = [ctypes.c_int]
+		pyVMEdisableScalerGate.restype = ctypes.c_int
 
-	def outputClearRegister(): #w, BA + 0x10, D16
+		ret15 = pyVMEdisableScalerGate(handle)
+		print("ret15",ret15)
+		print(VMEcodes[ret15])
 
-	def inputMultiplexerSetRegister(): #r/w, BA + 0x0B, D16
 
-	def inputMultiplexerClearRegister() #w, BA + 0x11, D16
-	"""
+	def readRegister(self,handle,reg):
+    
+		cReg = ctypes.c_uint(reg)
+
+		pyVMEreadRegister = CAENVMELib.CAENVMEReadRegister
+		pyVMEreadRegister.argtypes = [ctypes.c_int,cReg]
+		pyVMEreadRegister.restype = ctypes.c_int
+
+		cData = ctypes.c_uint()
+
+		ret16 = pyVMEreadRegister(handle,cReg,ctypes.pointer(cData))
+
+		print("ret16",ret16)
+		print(VMEcodes[ret16])
+		print("Result of read",cData.value)
+
+		return cData.value
