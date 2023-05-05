@@ -300,6 +300,6 @@ class VME:
 
 		print("ret16",ret16)
 		print(VMEcodes[ret16])
-		print("Result of read",cData.value)
+		print("Result of read bridge register",cData.value)
 
 		return cData.value
