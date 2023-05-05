@@ -67,8 +67,8 @@ def main():
     print("Getting configuration file for V488A TDC")
 
     #first argument is board type (0 = V1718 or 1 = V2718), second argument is the link number and third argument is the conet node
-    VMEbridge = VME(1,0,0)
-    handle = VMEbridge.connect()
+    #VMEbridge = VME(1,0,0)
+    #handle = VMEbridge.connect()
     
     """
     #VMEbridge.read(handle,0x02000000,0xFC,0x0D,0x02) #this works
@@ -85,19 +85,76 @@ def main():
     VMEbridge.read(handle,BA,0x1A,AM,DW)
     """
     
+    BA = 0x02000000 #base address
+    AM = 0x0D #address modifier
+    DW = 0x02 #data width
+
+    print(hex(BA))
+    print(type(BA))
+
+    """
     #VMEbridge.configPulser(handle,0,1,2,0,0,0,0)
     VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
     VMEbridge.setOutputConf(handle,0,0,0,6)
     VMEbridge.startPulser(handle,0)
     print("Waiting 5 seconds")
-    time.sleep(30)
+    time.sleep(5)
+
+    print("configurazione TDC")
+    BA = 0x02000000 #base address
+    AM = 0x0D #address modifier
+    DW = 0x02 #data width
+
+    print("reset modulo")
+    VMEbridge.read(handle,BA,0x1C,AM,DW)
+    input()
+    print("leggo control register")
+    VMEbridge.read(handle,BA,0x1A,AM,DW)
+    input()
+    print("Setto la soglia bassa")
+    VMEbridge.write(handle,BA,0x10,0x0,AM,DW)
+    input()
+    print("Setto la soglia alta")
+    VMEbridge.write(handle,BA,0x12,0xC7,AM,DW)
+    input()
+    print("Setto il time range")
+    VMEbridge.write(handle,BA,0x14,0xE0,AM,DW)
+    input()
+    print("Leggo IRQ register")
+    VMEbridge.read(handle,BA,0x0,AM,DW)
+    input()
+    print("Setto IRQ register")
+    VMEbridge.write(handle,BA,0x0,0x30FF,AM,DW)
+    input()
+    print("Leggo IRQ register")
+    VMEbridge.read(handle,BA,0x0,AM,DW)
+    input()
+    print("leggo control register")
+    VMEbridge.read(handle,BA,0x1A,AM,DW)
+    input()
+    print("Abilito i canali")
+    VMEbridge.write(handle,BA,0x1A,0x00FF,AM,DW)
+    input()
+    print("leggo control register")
+    VMEbridge.read(handle,BA,0x1A,AM,DW)
+    input()
+
     VMEbridge.stopPulser(handle,0)
+
+    VMEbridge.enableIRQ(handle,111)
+    VMEbridge.waitForIRQ(handle,111,1000000000000000)
+    #while VMEbridge.waitForIRQ(handle,111,1000000000000000):
+    #    print("Aspetto IRQ")
+    #    time.sleep(3)
+
+    print("IRQ ricevuta")
+    VMEbridge.checkIRQ(handle)
 
     #VMEbridge.enableIRQ(handle,111)
     #VMEbridge.checkIRQ(handle)
 
     VMEbridge.disconnect(handle)
-    """
+    
     mydb = mysql.connector.connect( #db object
         host="localhost",
         user="root",

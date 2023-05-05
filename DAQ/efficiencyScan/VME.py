@@ -226,6 +226,19 @@ class VME:
 		print("ret10",ret10)
 		print(VMEcodes[ret10])
 
+	def waitForIRQ(self,handle,mask,time):
+
+		cMask = ctypes.c_uint32(mask)
+		cTime = ctypes.c_uint32(time)
+
+		pyVMEwaitForIRQ = CAENVMELib.CAENVME_IRQWait
+		pyVMEwaitForIRQ.argtypes = [ctypes.c_int,ctypes.c_uint32,ctypes.c_uint32]
+		pyVMEwaitForIRQ.restype = ctypes.c_int
+
+		ret11 = pyVMEwaitForIRQ(handle,cMask,cTime)
+		print("ret11",ret11)
+		print(VMEcodes[ret11])
+
 
 	"""
 	#Functions for ease of use with the V2718 module
