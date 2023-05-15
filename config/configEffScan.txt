@@ -1,0 +1,2 @@
+HVeff1	meas	wait	trig
+1000	60	30	20

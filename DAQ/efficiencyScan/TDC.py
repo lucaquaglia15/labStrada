@@ -1,11 +1,7 @@
 #Class to implement all TDC functions for ease of use
-#BA = base address (A32 mode)
 import time
 import sys
 from VME import VME
-
-#General hex to bin function
-#def hexToBin():
 
 #Board features
 #V488A CAEN TDC
@@ -31,20 +27,24 @@ from VME import VME
 #FIFO mode, half full mode <12> of range register (BA + 0x14) -> 0
 #FIFO mode, fifo full mode <12> of range register (BA + 0x14) -> 1
 
+AM = 0x0D #AM accepted by the V488, supervised access
+DW = 0x02 #D16, only mode accepted by the TDCs
+VMEbridge = VME(1,0,0) #Define VME object in order to perform read/write operations on the TDCs
+
 class TDC:
 
 	#VME class constructor
 	def __new__(cls, *args, **kwargs):
 		return super().__new__(cls)
 
-	#mode = 0 -> common start, = 1 -> common stop
-	#enabled channels must be a 7-bit binary number, keeping in mind that
-	#channels go from 7 to 0, e.g. 00100101 means that ch 0-2-5 are enabled
-	def __init__(self, baseAddress, lowTh, highTh, timeWindow, mode, enChannels):
+	#mode = 0 -> common start, = 1 -> common stop + enabled channles
+	def __init__(self, baseAddress, lowTh, highTh, timeWindow, mode, IRQ):
 		self.baseAddress = baseAddress
 		self.lowTh = lowTh
 		self.highTh = highTh
 		self.timeWindow =  timeWindow
+		self.mode = mode
+		self.IRQ = IRQ
 
 	def __repr__(self) -> str:
 		return f"{type(self).__name__}(baseAddress={self.baseAddress}, lowTh={self.lowTh}, highTh={self.highTh})"
@@ -68,56 +68,120 @@ class TDC:
 			sys.exit("Address not recognized, stopping DAQ")
 
 	#reset register
-	def resetModule(self): #BA + 0x1C, read or write
+	def resetModule(self,VMEbridge,handle): #BA + 0x1C, read or write
 		print("Resetting module with base address",self.baseAddress)
-
-	def accessControlRegister(self): #BA + 0x1A
-		#<15> read and write = 0 -> common start, = 1 -> common stop
-		#<14> read only = 0 -> Output buffer is empty
-		#<13> read only = 0 -> Output buffer is full
-		#<12> read only = 0 -> Output buffer is half full
-		#<7...0> -> channels 7...0, if <n> = 1 -> ch is enabled
-		print("enabled channels (bin)",self.enChannels)
-
-
-	def accessRangeRegister(self): #BA + 0x14
-		#<12> read only, if = 0 -> HF; if = 1 -> FF
-		#<7...0> full scale time, 0x00 = 90 ns; 0xE0 = 770 ns
-
-	def accessInterruptRegister(self): #BA + 0x0
-
-		#<15...13> interrupt level
-		#<7...0> interrupt status/id what is placed on the interrupt 
-		#<12> interrupt start condition, if = 0 -> interrupt on buffer HALF FULL
-		#<12> interrupt start condition, if = 1 -> interrupt on buffer NOT EMPTY
-
-
+		VMEbridge.read(handle,self.baseAddress,0x1C,AM,DW)
+		print("Module with base address",self.baseAddress," successfully reset")
+		
 	#Set low threshold
-	def setLowThr(self): #BA + 0x10, write only
+	def setLowThr(self, VMEbridge, handle): #BA + 0x10, write only
+		
 		#Check if low thr is < 0
-		if self.lowTh < 0x0:
+		if hex(self.lowTh) < hex(0x0):
 			sys.exit("Low threshold cannot be negative")
-
+		
+		VMEbridge.write(handle,self.baseAddress,0x10,self.lowTh,AM, DW)
 		print("Setting low threshold for module with base address",self.baseAddress)
 		print("Low threshold value",self.lowTh)
 
 	#Set high threshold
-	def setHighThr(self): #BA + 0x12, write only
-		#Check that high thr is below 0xC7
-		if self.highTh > 0xC7:
+	def setHighThr(self, VMEbridge, handle): #BA + 0x12, write only
+		
+		#Check that high thr is below 0xC7 and above 0
+		if hex(self.highTh) > hex(0xC7):
 			sys.exit("High thr above higher limit")
-		elif self.highTh < 0x0:
+		elif hex(self.highTh) < hex(0x0):
 			sys.exit("High thr cannot be negative")
 
+		VMEbridge.write(handle,self.baseAddress,0x12,self.highTh,AM, DW)
 		print("Setting high threshold for module with base address",self.baseAddress)
 		print("High threshold value",self.highTh)
 
-	#Set FIFO in half full mode
-	def setFifoHalfFull(self): #BA + 0x1E read or write
-		print("Setting FIFO to Half Full mode for module with base address",self.baseAddress)
-
-	#Set FIFO in full mode 
-	def setFifoFull(self): #BA + 0x16 read or write
-		print("Setting FIFO to Full mode for module with base address",self.baseAddress)
-
+	#Set time window
+	def setTimeWindow(self, VMEbridge, handle):
+		#The conversion for find N, with given time interval (T), is: N = (3840/T - 3840/90)*(-1/0.16821274)
+		#Check that time window is below 770 ns and above 90 ns
+		if hex(self.timeWindow) > hex(0xE0):
+			sys.exit("Time window above 770ns")
+		elif hex(self.timeWindow) < hex(0x0):
+			sys.exit("Time window below 90ns")
+		
+		VMEbridge.write(handle,self.baseAddress,0x14,self.timeWindow,AM,DW)
+		print("Setting time window for module with base address",self.baseAddress)
+		print("Time window value: ", self.timeWindow)
 	
+	#Set IRQ level and status
+	def accessIRQregister(self, VMEbridge, handle, accessMode):
+		
+		if accessMode == 0: #read
+			VMEbridge.read(handle,self.baseAddress,0x0,AM,DW)
+		elif accessMode == 1: #write
+			VMEbridge.write(handle,self.baseAddress,0x0,self.IRQ,AM,DW)
+			print("Setting IRQ parameters for module with base address", self.baseAddress)
+			print("IRQ parameters: ", self.IRQ)
+
+	#Read or write control register
+	def accessControlRegister(self, VMEbridge, handle, accessMode):
+		
+		if accessMode == 0: #read
+			VMEbridge.read(handle,self.baseAddress,0x1A,AM,DW)
+		elif accessMode == 1: #write
+			VMEbridge.write(handle,self.baseAddress,0x1A,self.mode,AM,DW)
+			print("Setting DAQ mode for module with base address", self.baseAddress)
+			print("DAQ mode: ", self.mode)
+	
+	#Read output buffer
+	def readOutputBuffer(self,VMEbridge,handle):
+
+		#to write result eactly as a 16 bit binary number (leading 0's)
+		data = '{0:016b}'.format(VMEbridge.read(handle,self.baseAddress,0x18,AM,DW)) 
+		print("data",data)
+		if int(data[0]) == 1: #header
+			print("HEADER")
+			mult = ""
+			evNum = ""
+			for i in range(3):
+				mult = mult + data[i+1]
+
+			for i in range(12):
+				print(i)
+				evNum = evNum + data[i+4]
+
+			print("Molteplicità :", int(mult,2)+1)
+			print("Trigger number: ",evNum)
+			#print(int(mult,10)+1)
+			return [int(mult,2)+1,int(evNum,10)]
+		
+		elif int(data[0]) == 0: #event
+			print("Event")
+			ch = ""
+			time = ""
+			for i in range(3):
+				ch = ch + data[i+1]
+
+			for i in range(12):
+				time = time+data[i+4]
+			
+			print("channel: ",type(int(ch,2)), " ", int(ch,2))
+			print("time: ",int(time,2))
+			
+			eventTime = self.converter(int(time,2))
+			
+			if hex(self.baseAddress) == hex(0x02000000):
+				print("Channel with sum: ",int(ch,2))
+				return [int(ch,2),eventTime]
+			elif hex(self.baseAddress) == hex(0x03000000):
+				print("Channel with sum: ",int(ch,2)+8)
+				return [int(ch,2)+8,eventTime]
+			elif hex(self.baseAddress) == hex(0x04000000):
+				print("Channel with sum: ",int(ch,2)+16)
+				return [int(ch,2)+16,eventTime]
+	
+	def converter(self,eventTime):
+			convfactor = 3.6/4096
+			print(self.timeWindow, eventTime)
+			tw = 3840/((-0.16821274*self.timeWindow)+(3840/90))
+
+			tensione = convfactor*eventTime 
+			return tensione*tw/3.75
+

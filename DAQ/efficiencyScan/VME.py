@@ -8,14 +8,11 @@ import sys
 libname = "/usr/lib/libCAENVME.so.v3.4.1"
 CAENVMELib = ctypes.CDLL(libname)
 
-#VME error codes dictionary
-#VMEcodes = {0:"Success",-1:"Bus Error",-2:"Communnication Error",-3:"Generic Error",
-#-4:"Invalid Parameter",-5:"Timeout Error",-6:"Already Open Error",
-#-7:"Max Board Count Error",-8:"Not Supported"}
-
 VMEcodes = {0:"cvSuccess",-1:"cvBusError",-2:"cvCommError",-3:"cvGenericError",
 -4:"cvInvalidParameter",-5:"cvTimeoutError",-6:"cvAlreadyOpenError",
 -7:"cvMaxBoardCountError",-8:"cvNotSupported"}
+
+debug = False #debug variable
 
 #Board types
 #cvV1718 = 0 -> CAEN V1718 USB-VME bridge
@@ -38,7 +35,11 @@ class VME:
 
 	#---Member functions---#
 
-	#Functions from the CAEN VME library
+	###################
+	#                 #
+	#General functions#
+	#                 #
+	###################
 
 	#Open connection with VME bridge
 	def connect(self):
@@ -48,11 +49,10 @@ class VME:
 			print("Sorry board not implemented")
 			sys.exit("Exiting DAQ scan")
 
-		#pythonic definition of function arguments
 		cBoardType = ctypes.c_int(self.boardType)
 		cLinkNumber = ctypes.c_uint32(self.linkNumber)
 		cConetNode = ctypes.c_short(self.conetNode)
-		handle = ctypes.c_int() #handle defined as int
+		handle = ctypes.c_int()
 
 		pyVMEinit = CAENVMELib.CAENVME_Init2
 		pyVMEinit.argtypes = [ctypes.c_int,ctypes.c_void_p,ctypes.c_short,ctypes.POINTER(ctypes.c_int)]
@@ -60,22 +60,34 @@ class VME:
 
 		ret = pyVMEinit(cBoardType,ctypes.pointer(cLinkNumber),cConetNode,ctypes.pointer(handle))
 
-		print(VMEcodes[ret])
+		if ret != 0:
+			print("Error in connect: ",VMEcodes[ret])
+
+		if debug:
+			print("ret in connect: ",ret)
+			print(VMEcodes[ret])
 
 		return handle
 	
+	#Close connection with VME bridge
 	def disconnect(self,handle):
 
 		pyVMEend = CAENVMELib.CAENVME_End
 		pyVMEend.argtypes = [ctypes.c_int]
 		pyVMEend.restype = ctypes.c_int
 
-		ret2 = pyVMEend(handle)
+		ret = pyVMEend(handle)
 
-		print(VMEcodes[ret2])
+		if debug:
+			print("ret in disconnect: ",ret)
+			print(VMEcodes[ret])
+		
+		if ret == 0:
+			print("Disconnect successfully from VME bridge")
+		else:
+			print("Error disconnecting from bridge, error code:",ret)
 
 	#Write data at given address
-	#handle, address, data, address modifier, data width
 	def write(self,handle,baseAddress,address,data,AM,DW):
 
 		print("Writing baseAddress",hex(baseAddress),"address",hex(address))
@@ -95,9 +107,11 @@ class VME:
 		pyVMEwrite.argtypes = [ctypes.c_int,ctypes.c_uint32,ctypes.c_void_p,ctypes.c_uint,ctypes.c_uint]
 		pyVMEwrite.restype = ctypes.c_int
 
-		ret3 = pyVMEwrite(handle,cAddress,ctypes.pointer(cData),cAM,cDW)
+		ret = pyVMEwrite(handle,cAddress,ctypes.pointer(cData),cAM,cDW)
 
-		print(VMEcodes[ret3])
+		if debug:
+			print("ret in write",ret)
+			print(VMEcodes[ret])
 
 	#Perform read cycle at given address
 	def read(self,handle,baseAddress,address,AM,DW):
@@ -114,10 +128,18 @@ class VME:
 
 		cData = ctypes.c_uint()
 
-		ret4 = pyVMEread(handle,cAddress,ctypes.pointer(cData),cAM,cDW)
+		ret = pyVMEread(handle,cAddress,ctypes.pointer(cData),cAM,cDW)
 
-		print(VMEcodes[ret4])
-		print("Result of read",hex(cData.value))
+		#Check if read is successful
+		if ret != 0:
+			print("Error while reading: ",VMEcodes[ret])
+			sys.exit("Exiting from program due to VME read error")
+
+		if debug:
+			print("ret in read: ",ret)
+			print(VMEcodes[ret])
+			print("Result of read (hex string)",hex(cData.value))
+		
 		return cData.value
 
 	#Configure VME bridge pulse
@@ -138,9 +160,11 @@ class VME:
 		pyVMEconfigPulser.argtypes = [ctypes.c_int,ctypes.c_uint,ctypes.c_ubyte,ctypes.c_ubyte,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint]
 		pyVMEconfigPulser.restype = ctypes.c_int
 
-		ret5 = pyVMEconfigPulser(handle,cPulSel,cPeriod,cWidth,cUnit,cPulseNum,cStart,cReset)
-		print("ret5",ret5)
-		print(VMEcodes[ret5])
+		ret = pyVMEconfigPulser(handle,cPulSel,cPeriod,cWidth,cUnit,cPulseNum,cStart,cReset)
+		
+		if debug:
+			print("ret in configPulser: ",ret)
+			print(VMEcodes[ret])
 
 	#Start pulser via software
 	def startPulser(self,handle,pulSel):
@@ -151,9 +175,10 @@ class VME:
 		pyVMEstartPulser.argtypes = [ctypes.c_int,ctypes.c_uint]
 		pyVMEstartPulser.restype = ctypes.c_int
 
-		ret6 = pyVMEstartPulser(handle,cPulSel)
-		print("ret6",ret6)
-		print(VMEcodes[ret6])
+		ret = pyVMEstartPulser(handle,cPulSel)
+		if debug:
+			print("ret in startPulser:2",ret)
+			print(VMEcodes[ret])
 
 	#Stop pulser via software
 	def stopPulser(self,handle,pulSel):
@@ -164,9 +189,11 @@ class VME:
 		pyVMEstopPulser.argtypes = [ctypes.c_int,ctypes.c_uint]
 		pyVMEstopPulser.restype = ctypes.c_int
 
-		ret7 = pyVMEstopPulser(handle,cPulSel)
-		print("ret7",ret7)
-		print(VMEcodes[ret7])
+		ret = pyVMEstopPulser(handle,cPulSel)
+		
+		if debug:
+			print("ret in stopPulser",ret)
+			print(VMEcodes[ret])
 
 	#Set configuration of bridge output
 	def setOutputConf(self,handle,outputSel,outputPol,ledPolarity,ioSource):
@@ -180,64 +207,11 @@ class VME:
 		pyVMEsetOutputConf.argtypes = [ctypes.c_int,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint]
 		pyVMEsetOutputConf.restype = ctypes.c_int
 
-		ret7 = pyVMEsetOutputConf(handle,cOutputSel,cOutputPol,cLedPolarity,cIOsource)
-		print("ret7",ret7)
-		print(VMEcodes[ret7])
-
-	#Enable IRQ status check
-	def enableIRQ(self,handle,mask):
-
-		cMask = ctypes.c_int(mask)
-
-		pyVMEenableIRQ = CAENVMELib.CAENVME_IRQEnable
-		pyVMEenableIRQ.argtypes = [ctypes.c_int,ctypes.c_int]
-		pyVMEenableIRQ.restype = ctypes.c_int
-
-		ret8 = pyVMEenableIRQ(handle,cMask)
-		print("ret8",ret8)
-		print(VMEcodes[ret8])
-
-	
-	#Check IRQ status
-	def checkIRQ(self,handle):
-
-		cMaskOut = ctypes.c_int()
-
-		pyVMEcheckIRQ = CAENVMELib.CAENVME_IRQCheck
-		pyVMEcheckIRQ.argtypes = [ctypes.c_int,ctypes.POINTER(ctypes.c_int)]
-		pyVMEcheckIRQ.restype = ctypes.c_int
-
-		ret9 = pyVMEcheckIRQ(handle,ctypes.pointer(cMaskOut))
-		print(hex(cMaskOut.value))
-		print("ret9",ret9)
-		print(VMEcodes[ret9])
-		return cMaskOut.value
-
-	def IRQacknowledge(hself,handle,IRQlevel,DW):
-
-		cIRQlevel = ctypes.c_uint(IRQlevel)
-		cDW = ctypes.c_uint(DW)
-
-		ret10 = pyVMEintAck = CAENVMELib.CAENVME_IACKCycle
-		pyVMEintAck.argtypes = [ctypes.c_int]
-		pyVMEintAck.restype = ctypes.c_int
-
-		ret10 = pyVMEintAck()
-		print("ret10",ret10)
-		print(VMEcodes[ret10])
-
-	def waitForIRQ(self,handle,mask,time):
-
-		cMask = ctypes.c_uint32(mask)
-		cTime = ctypes.c_uint32(time)
-
-		pyVMEwaitForIRQ = CAENVMELib.CAENVME_IRQWait
-		pyVMEwaitForIRQ.argtypes = [ctypes.c_int,ctypes.c_uint32,ctypes.c_uint32]
-		pyVMEwaitForIRQ.restype = ctypes.c_int
-
-		ret11 = pyVMEwaitForIRQ(handle,cMask,cTime)
-		print("ret11",ret11)
-		print(VMEcodes[ret11])
+		ret = pyVMEsetOutputConf(handle,cOutputSel,cOutputPol,cLedPolarity,cIOsource)
+		
+		if debug:
+			print("ret in setOutputConf: ",ret)
+			print(VMEcodes[ret])
 
 	def confScaler(self,handle,limit,autoReset,hit,gate,reset):
 		cLimit = ctypes.c_short(limit)
@@ -250,9 +224,11 @@ class VME:
 		pyVMEconfScaler.argtypes = [ctypes.c_int,ctypes.c_short,ctypes.c_short,ctypes.c_uint,ctypes.c_uint,ctypes.c_uint]
 		pyVMEconfScaler.restype = ctypes.c_int
 
-		ret12 = pyVMEconfScaler(handle,cLimit,cAutoReset,cHit,cGate,cReset)
-		print("ret12",ret12)
-		print(VMEcodes[ret12])
+		ret = pyVMEconfScaler(handle,cLimit,cAutoReset,cHit,cGate,cReset)
+		
+		if debug:
+			print("ret in confScaler",ret)
+			print(VMEcodes[ret])
 
 		
 	def resetScalerCount(self,handle):
@@ -261,9 +237,11 @@ class VME:
 		pyVMEresetScalerCount.argtypes = [ctypes.c_int]
 		pyVMEresetScalerCount.restype = ctypes.c_int
         
-		ret13 = pyVMEresetScalerCount(handle)
-		print("ret13",ret13)
-		print(VMEcodes[ret13])
+		ret = pyVMEresetScalerCount(handle)
+		
+		if debug:
+			print("ret in resetScalerCount: ",ret)
+			print(VMEcodes[ret])
 
 	def enableScalerGate(self,handle):
 
@@ -271,9 +249,11 @@ class VME:
 		pyVMEenableScalerGate.argtypes = [ctypes.c_int]
 		pyVMEenableScalerGate.restype = ctypes.c_int
 
-		ret14 = pyVMEenableScalerGate(handle)
-		print("ret14",ret14)
-		print(VMEcodes[ret14])
+		ret = pyVMEenableScalerGate(handle)
+		
+		if debug:
+			print("ret in enableScalerGate",ret)
+			print(VMEcodes[ret])
 
 	def disableScalerGate(self,handle):
 
@@ -281,25 +261,154 @@ class VME:
 		pyVMEdisableScalerGate.argtypes = [ctypes.c_int]
 		pyVMEdisableScalerGate.restype = ctypes.c_int
 
-		ret15 = pyVMEdisableScalerGate(handle)
-		print("ret15",ret15)
-		print(VMEcodes[ret15])
+		ret = pyVMEdisableScalerGate(handle)
+		
+		if debug:
+			print("ret in disableScalerGate",ret)
+			print(VMEcodes[ret])
 
+	##############################
+	#                            #
+	#VME bridge internal register#
+	#                            #
+	##############################
 
+	#Read bridge internal register
 	def readRegister(self,handle,reg):
     
 		cReg = ctypes.c_uint(reg)
 
-		pyVMEreadRegister = CAENVMELib.CAENVMEReadRegister
-		pyVMEreadRegister.argtypes = [ctypes.c_int,cReg]
+		pyVMEreadRegister = CAENVMELib.CAENVME_ReadRegister
+		pyVMEreadRegister.argtypes = [ctypes.c_int,ctypes.c_uint]
 		pyVMEreadRegister.restype = ctypes.c_int
 
 		cData = ctypes.c_uint()
 
-		ret16 = pyVMEreadRegister(handle,cReg,ctypes.pointer(cData))
+		ret = pyVMEreadRegister(handle,cReg,ctypes.pointer(cData))
 
-		print("ret16",ret16)
-		print(VMEcodes[ret16])
-		print("Result of read bridge register",cData.value)
+		if ret != 0:
+			print("Error while reading bridge register:",VMEcodes[ret])
+
+		if debug:
+			print("ret in readRegister",ret)
+			print(VMEcodes[ret])
+			print("Scaler count (hex string): ",hex(cData.value))
 
 		return cData.value
+
+	#Write bridge internal register
+	def writeRegister(self,handle,reg,data):
+
+		cReg = ctypes.c_uint(reg)
+		cData = ctypes.c_uint(data)
+
+		pyVMEwriteRegister = CAENVMELib.CAENVME_WriteRegister
+		pyVMEwriteRegister.argtypes = [ctypes.c_int,ctypes.c_uint,ctypes.c_uint]
+		pyVMEwriteRegister.restype = ctypes.c_int
+
+		ret = pyVMEwriteRegister(handle,cReg,cData)
+
+		if debug:
+			print("ret in writeRegister: ",ret)
+			print(VMEcodes[ret])
+
+	#######################
+	#                     #
+	#IRQ-related functions#
+	#                     #
+	#######################
+
+
+	#Enable IRQ status check
+	def enableIRQ(self,handle,mask):
+
+		cMask = ctypes.c_int(mask)
+
+		pyVMEenableIRQ = CAENVMELib.CAENVME_IRQEnable
+		pyVMEenableIRQ.argtypes = [ctypes.c_int,ctypes.c_int]
+		pyVMEenableIRQ.restype = ctypes.c_int
+
+		ret = pyVMEenableIRQ(handle,cMask)
+		
+		if debug:
+			print("ret in enableIRQ: ",ret)
+			print(VMEcodes[ret])
+
+		print("Enabling IRQ on lines",mask)
+
+	#Disable IRQ check
+	def disableIRQ(self,handle,mask):
+
+		cMask = ctypes.c_int(mask)
+
+		pyVMEdisableIRQ = CAENVMELib.CAENVME_IRQDisable
+		pyVMEdisableIRQ.argtypes = [ctypes.c_int,ctypes.c_int]
+		pyVMEdisableIRQ.restype = ctypes.c_int
+
+		ret = pyVMEdisableIRQ(handle,cMask)
+		
+		if debug:
+			print("ret in disableIRQ",ret)
+			print(VMEcodes[ret])
+
+		print("Disabling IRQ on lines",mask)
+
+	
+	#Check IRQ status
+	def checkIRQ(self,handle):
+
+		cMaskOut = ctypes.c_int()
+
+		pyVMEcheckIRQ = CAENVMELib.CAENVME_IRQCheck
+		pyVMEcheckIRQ.argtypes = [ctypes.c_int,ctypes.POINTER(ctypes.c_int)]
+		pyVMEcheckIRQ.restype = ctypes.c_int
+
+		ret = pyVMEcheckIRQ(handle,ctypes.pointer(cMaskOut))
+		
+		if ret != 0:
+			print("Error in checkIRQ: ",VMEcodes[ret])
+			sys.exit("Exiting")
+		
+		if debug:
+			print("ret in checkIRQ",ret)
+			print(VMEcodes[ret])
+			print("checkIRQ result (hex string)",hex(cMaskOut.value))
+
+		return cMaskOut.value
+
+	#Perform IACK cycle
+	def iackCycle(self,handle,IRQlevel,DW):
+
+		cIRQlevel = ctypes.c_uint(IRQlevel)
+		cDW = ctypes.c_uint(DW)
+		cData = ctypes.c_uint()
+
+		pyVMEintAck = CAENVMELib.CAENVME_IACKCycle
+		pyVMEintAck.argtypes = [ctypes.c_int,ctypes.c_uint,ctypes.c_void_p,ctypes.c_uint]
+		pyVMEintAck.restype = ctypes.c_int
+
+		ret = pyVMEintAck(handle,cIRQlevel,ctypes.pointer(cData),cDW)
+		
+		if debug:
+			print("ret in iackCycle: ",ret)
+			print(VMEcodes[ret])
+			print("iackCycle result (hex string): ",hex(cData.value))
+		
+		return hex(cData.value)
+
+	#Wait for IRQ
+	def waitForIRQ(self,handle,mask,time):
+
+		cMask = ctypes.c_uint32(mask)
+		cTime = ctypes.c_uint32(time)
+
+		pyVMEwaitForIRQ = CAENVMELib.CAENVME_IRQWait
+		pyVMEwaitForIRQ.argtypes = [ctypes.c_int,ctypes.c_uint32,ctypes.c_uint32]
+		pyVMEwaitForIRQ.restype = ctypes.c_int
+
+		ret = pyVMEwaitForIRQ(handle,cMask,cTime)
+		
+		if debug:
+			print("ret in waitIRQ: ",ret)
+			print(VMEcodes[ret])
+
