@@ -68,6 +68,8 @@ def main():
         database="labStrada"
     )
     mycursor = mydb.cursor()
+
+    #Check the mixture that is being flushed and send the data to db
     
     getLastRun = ("SELECT runNumber FROM currentScan ORDER BY date DESC LIMIT 1")
     mycursor.execute(getLastRun)
