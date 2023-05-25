@@ -13,6 +13,6 @@ channels = [[1]] #HV channels
 
 effHV = [[] for x in range(len(slot))] #Effective HV
 
-names = [[b"ECOgasTest"]]
+names = [[b"ECOgas"]]
 
 caenIPaddress = "90.147.203.174"

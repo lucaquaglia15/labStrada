@@ -81,8 +81,8 @@ def main():
     newPath = "/home/pcald32/runs/efficiencyScans/scan_"+str(newRun) 
     if not os.path.exists(newPath):
         os.makedirs(newPath)
-        os.chdir(newPath)
-        fOutDAQ = ROOT.TFile("test.root","RECREATE")
+    #    os.chdir(newPath)
+    #    fOutDAQ = ROOT.TFile("test.root","RECREATE")
     
     #Define arrays to fill for tree branches
     size = array.array( 'l', [ 0 ] )
@@ -175,19 +175,20 @@ def main():
     hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
 
     #start pulser for VETO
-    print("starting pulser")
-    VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
-    VMEbridge.setOutputConf(handle,0,0,0,6)
-    VMEbridge.startPulser(handle,0)
+    #print("starting pulser")
+    #VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
+    #VMEbridge.setOutputConf(handle,0,0,0,6)
+    #VMEbridge.startPulser(handle,0)
 
     #configure TDCs
-    print("\n configuring TDCs \n")
+    #print("\n configuring TDCs \n")
     
     TDCs = [] #empty list to define one TDC object for every TDC used in the DAQ
     
     for tdc in range(len(BA)):
         TDCs.append(TDC(BA[tdc],lowTh[tdc],highTh[tdc],window[tdc],enablech[tdc],IRQ[tdc]))
     
+    """
     for tdc in range(len(BA)):
         TDCs[tdc].resetModule(VMEbridge,handle)
         TDCs[tdc].setLowThr(VMEbridge,handle)
@@ -197,166 +198,387 @@ def main():
         TDCs[tdc].accessIRQregister(VMEbridge,handle,0)
         TDCs[tdc].accessControlRegister(VMEbridge,handle,1)
         TDCs[tdc].accessControlRegister(VMEbridge,handle,0)
-    
-    print("\n Configuration done, starting scan \n")
-    
-    VMEbridge.resetScalerCount(handle)
-    
-    print("\n Scaler counts:",VMEbridge.readRegister(handle,0x1D))
-
-    VMEbridge.confScaler(handle,0,0,1,0,0)
-    VMEbridge.enableScalerGate(handle)
-
-    VMEbridge.enableIRQ(handle,111)
-
     """
+    #print("\n Configuration done, starting scan \n")
+    
+    #VMEbridge.resetScalerCount(handle)
+    
+    #print("\n Scaler counts:",VMEbridge.readRegister(handle,0x1D))
+
+    #VMEbridge.confScaler(handle,0,0,1,0,0)
+    #VMEbridge.enableScalerGate(handle)
+
+    #VMEbridge.enableIRQ(handle,111)
+
+    #Connect to CAEN HV module
     handle = hvModule.connect()
     for slot in range(len(slots)):
         for iCh, channel in enumerate(channels[slot]):
             hvModule.setParameter(handle,slots[slot],b"Pw",channel,1)
             hvModule.setChName(handle,slots[slot],channel,chName[slot][iCh])
 
-    #Get last PT values to apply initial correction to HV
-    mydb.cmd_refresh(1)
-    lastEnv = getPT(mycursor)
-    lastDate = lastEnv[0][0]
-    delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
+    #Define general filename for DIP .root output file
+    dipOut = "scan_"+str(newRun)+"_DIP_"
+    caenOut = "scan_"+str(newRun)+"_CAEN_"
+    daqOut = "scan_"+str(newRun)+"_DAQ_"
 
-    while delta > 1200: #1200 s = logger stopped for more than 20 minutes
+    #Begin for cycle on HV points
+    for i in range(int(len(constants.measTime))):
+
+        print("starting pulser")
+        VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
+        VMEbridge.setOutputConf(handle,0,0,0,6)
+        VMEbridge.startPulser(handle,0)
+
+        print("\n configuring TDCs \n")
+
+        for tdc in range(len(BA)):
+            TDCs[tdc].resetModule(VMEbridge,handle)
+            TDCs[tdc].setLowThr(VMEbridge,handle)
+            TDCs[tdc].setHighThr(VMEbridge,handle)
+            TDCs[tdc].setTimeWindow(VMEbridge,handle)
+            TDCs[tdc].accessIRQregister(VMEbridge,handle,1)
+            TDCs[tdc].accessIRQregister(VMEbridge,handle,0)
+            TDCs[tdc].accessControlRegister(VMEbridge,handle,1)
+            TDCs[tdc].accessControlRegister(VMEbridge,handle,0)
+
+        print("\n Configuration done, starting scan \n")
+        VMEbridge.resetScalerCount(handle)
+        VMEbridge.confScaler(handle,0,0,1,0,0)
+        VMEbridge.enableScalerGate(handle)
+
+        print("\n Scaler counts:",VMEbridge.readRegister(handle,0x1D))
+
+        VMEbridge.enableIRQ(handle,111)
+        
+        if debug:
+            print(i)
+    
+        print("Scanning point:",i+1)
+
+        scanFol = "/home/pcald32/runs/efficiencyScans/scan_"+str(newRun)+"/HV_"+str(i+1)
+        if not os.path.exists(scanFol):
+            os.makedirs(scanFol)
+
+        #Go in the folder 
+        dipOut = dipOut+"HV"+str(i+1)+".root" 
+        caenOut = caenOut+"HV"+str(i+1)+".root"
+        daqOut = daqOut+"HV"+str(i+1)+".root"
+
+        #Declare list of histograms to save CAEN values
+        hHVmon = []
+        hHVapp = []
+        hHVeff = []
+        hImon = []
+
+        #Append CAEN histograms to lists declared earlier
+        for slot in range(len(slots)):
+            for iCh, channel in enumerate(channels[slot]):
+                elemHVmon = ROOT.TH1F(str(chName[slot][iCh].decode('utf-8'))+"_HVmon_HV"+str(i+1),str(chName[slot][iCh])+"_HVmon_"+str(i+1),1000,0,1)
+                elemHVmon.GetXaxis().SetCanExtend(True)
+                elemHVapp = ROOT.TH1F(str(chName[slot][iCh].decode('utf-8'))+"_HVapp_"+str(i+1),str(chName[slot][iCh])+"_HVapp_"+str(i+1),1000,0,1)
+                elemHVapp.GetXaxis().SetCanExtend(True)
+                elemHVeff = ROOT.TH1F(str(chName[slot][iCh].decode('utf-8'))+"_HVeff_"+str(i+1),str(chName[slot][iCh])+"_HVeff_"+str(i+1),1000,0,1)
+                elemHVeff.GetXaxis().SetCanExtend(True)
+                elemImon = ROOT.TH1F(str(chName[slot][iCh].decode('utf-8'))+"_Imon_"+str(i+1),str(chName[slot][iCh])+"_Imon_"+str(i+1),1000,0,1)
+                elemImon.GetXaxis().SetCanExtend(True) 
+                hHVmon.append(elemHVmon)
+                hHVapp.append(elemHVapp)
+                hHVeff.append(elemHVeff)
+                hImon.append(elemImon)
+
+        #Declare histograms to save DIP values
+        hTemp = ROOT.TH1F("Temperature_HV"+str(i+1),"Temperature_HV_"+str(i+1),1000,0,1)
+        hTemp.GetXaxis().SetCanExtend(True)
+        hPress = ROOT.TH1F("Pressure_HV"+str(i+1),"Pressure_HV_"+str(i+1),1000,0,1)
+        hPress.GetXaxis().SetCanExtend(True)
+        hHumi = ROOT.TH1F("Humidity_HV"+str(i+1),"Humidity_HV"+str(i+1),1000,0,1)
+        hHumi.GetXaxis().SetCanExtend(True)
+        hFlow = ROOT.TH1F("Flow_HV"+str(i+1),"Flow_HV"+str(i+1),1000,0,1)
+        hFlow.GetXaxis().SetCanExtend(True)
+
+        #Get last PT values to apply initial correction to HV
         mydb.cmd_refresh(1)
         lastEnv = getPT(mycursor)
         lastDate = lastEnv[0][0]
-        delta = (datetime.datetime.now() - lastDate).total_seconds()
-        print("PT logging stopped more than 10 minutes ago!")
-        print("Last PT saved is at:",str(lastDate))
-        print("Pausing current scan until PT logging resumes")  
-        time.sleep(3)
+        delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-    temperature = float(lastEnv[0][1])+273.15 #K
-    pressure = float(lastEnv[0][2]) #mbar
+        while delta > 1200: #1200 s = logger stopped for more than 20 minutes
+            mydb.cmd_refresh(1)
+            lastEnv = getPT(mycursor)
+            lastDate = lastEnv[0][0]
+            delta = (datetime.datetime.now() - lastDate).total_seconds()
+            print("PT logging stopped more than 10 minutes ago!")
+            print("Last PT saved is at:",str(lastDate))
+            print("Pausing current scan until PT logging resumes")  
+            time.sleep(3)
 
-    #Set corrected voltage to proper HV channel and then wait that voltages reaches desired value
-    for slot in range(len(slots)):
-        for iCh, channel in enumerate(channels[slot]):
-            print("Slot",slots[slot],"channel",channel,"HVeff",effHV[slot][iCh+(i*len(channels[slot]))])
-            hvApp = ptCorr(temperature, pressure, float(effHV[slot][iCh+(i*len(channels[slot]))]))
-            hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
-            print("HVapp",hvApp)
+        temperature = float(lastEnv[0][1])+273.15 #K
+        pressure = float(lastEnv[0][2]) #mbar
 
-    #Check if connection to HV module is active
-    if handle.value != 0:
-        print("CAEN HV module not connected")
-        hvModule.disconnect(handle)
-        sys.exit("Exiting current scan")
+        #Set corrected voltage to proper HV channel and then wait that voltages reaches desired value
+        for slot in range(len(slots)):
+            for iCh, channel in enumerate(channels[slot]):
+                print("Slot",slots[slot],"channel",channel,"HVeff",effHV[slot][iCh+(i*len(channels[slot]))])
+                hvApp = ptCorr(temperature, pressure, float(effHV[slot][iCh+(i*len(channels[slot]))]))
+                hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
+                print("HVapp",hvApp)
 
-    #Sleep for 2 seconds since, if channels are already on, it takes a bit of time to change status from ON to Ramp UP/DOWN
-    time.sleep(2)
+        #Check if connection to HV module is active
+        if handle.value != 0:
+            print("CAEN HV module not connected")
+            hvModule.disconnect(handle)
+            sys.exit("Exiting current scan")
 
-    #Check if the channels are ramping
-    while getStatus(hvModule,handle,totChannels,slots,channels) == True:
-        print("Channels are ramping")
+        #Sleep for 2 seconds since, if channels are already on, it takes a bit of time to change status from ON to Ramp UP/DOWN
         time.sleep(2)
 
-    print("Ramping completed")
-    """
+        #Check if the channels are ramping
+        while getStatus(hvModule,handle,totChannels,slots,channels) == True:
+            print("Channels are ramping")
+            time.sleep(2)
 
-    VMEbridge.stopPulser(handle,0)
+        print("Ramping completed")
 
-    if hex(VMEbridge.checkIRQ(handle)) == hex(0x0):
-        waitingIRQ = True
-        print("Waiting for IRQ")
+        hvModule.disconnect(handle)
+
+        print("Waiting for waiting time")
+        print(constants.waitTime[i],"s")
+        time.sleep(int(constants.waitTime[i]))
+        print("Waiting time over")
+
+        hvModule.connect()
+        time.sleep(2)
+
+        #Remove veto and start timer for PT correction
+        VMEbridge.stopPulser(handle,0) #remove veto
+        start = time.perf_counter() #start timer
     
-    while waitingIRQ:
+        #temporaneo
+        #contaMille = 0
 
-        if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
-            print("Desidered trigger number reached, moving to the next HV point")
-            print("Numero di trigger impostati: ",int(hex(trigNum[0]),16))
-            print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
-            fOutDAQ.cd()
-            treeDAQ.Write()
-            fOutDAQ.Close()
-            break
-        
-        else:
-            VMEbridge.stopPulser(handle,0)
-            IRQlevel = hex(VMEbridge.checkIRQ(handle))
-            event = []
+        if hex(VMEbridge.checkIRQ(handle)) == hex(0x0):
+            waitingIRQ = True
+            print("Waiting for IRQ")
+    
+        while waitingIRQ:
 
-            while IRQlevel != hex(0x0):
-                VMEbridge.disableIRQ(handle,111)
-
+            if time.perf_counter() - start > 30: #more than 30 seconds since last measurement
                 VMEbridge.startPulser(handle,0)
-                IRQvector = VMEbridge.iackCycle(handle,int(IRQlevel,16),0x01)
-                print("IRQ ricevuta")
-                print("IRQvector: ",IRQvector) 
-                print("IRQlevel: ",IRQlevel)
-                header = []
-                
-                whichTDC = -1
-                
-                if IRQvector == hex(0x1):
-                    whichTDC = 0
-                elif IRQvector == hex(0x2):
-                    whichTDC = 1
-                elif IRQvector == hex(0x3):
-                    whichTDC = 2
+                start = time.perf_counter() #Update last time of correction
+                #PT correction
+                mydb.cmd_refresh(1) #refresh db to get last entry
+            
+                globalIndex = 0
+            
+                lastEnv = getPT(mycursor)
+                lastDate = lastEnv[0][0]
+                delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-                header = TDCs[whichTDC].readOutputBuffer(VMEbridge,handle)
-                #time.sleep(2)
-                print("\n", "Header 0:",header[0],"\n")
+                while delta > 1200:
+                    t_end = t_end + 3 #this is needed because the way to measure residual time is to compute t_end before the start of measuring time
+                    #but even if the PT logging is stopped, the time still passes. In this way we extend the end of run by 3 seconds, which is the waiting
+                    #time at the end of (while delta > 1200). This is precise to ~0.1 s, it can be improved by measuring how long the loop is but for the moment
+                    #it is good enough
+                    mydb.cmd_refresh(1)
+                    lastEnv = getPT(mycursor)
+                    lastDate = lastEnv[0][0]
+                    delta = (datetime.datetime.now() - lastDate).total_seconds()
+                    print("PT logging stopped more than 10 minutes ago!")
+                    print("Last PT saved is at:",str(lastDate))
+                    print("Pausing current scan until PT resumes")  
+                    time.sleep(3)
+
+                temperature = lastEnv[0][1]+273.15
+                pressure = lastEnv[0][2]
+                #print("temperature",temperature,"pressure",pressure)
+
+                hTemp.Fill(lastEnv[0][1]) #Fill temperature histo
+                hPress.Fill(lastEnv[0][2]) #Fill pressure histo
+                hHumi.Fill(lastEnv[0][3]) #Fill humidity histo
+                #hFlow.Fill(lastEnv[0][4]) #Fill flow histo
+           
+                for slot in range(len(slots)):
+                    for iCh, channel in enumerate(channels[slot]):
+                        print("i",i)
+                        print("slot",slot)
+                        print("iCh",iCh)
+                        print("channel",channel)
+                        hvApp = ptCorr(temperature, pressure, float(effHV[slot][iCh+(i*len(channels[slot]))]))
+                        hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
+                        
+                        hvMon = hvModule.getParameter(handle,slots[slot],b"VMon",channel)
+                        iMon = hvModule.getParameter(handle,slots[slot],b"IMon",channel)
+                        hvSet = hvModule.getParameter(handle,slots[slot],b"V0Set",channel)
+                        
+                        hHVeff[globalIndex].Fill(float(effHV[slot][iCh+(i*len(channels[slot]))]))
+                        hHVmon[globalIndex].Fill(hvMon)
+                        hImon[globalIndex].Fill(iMon)
+                        hHVapp[globalIndex].Fill(hvSet)
+                        print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
+                        globalIndex = globalIndex+1
+
+                VMEbridge.stopPulser(handle,0)
+
+            #if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
+            #    contaMille = contaMille+1
+
+            #if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16):
+            if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
+                print("Desidered trigger number reached, moving to the next HV point")
+                print("Numero di trigger impostati: ",int(hex(trigNum[0]),16))
+                print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
                 
-                for ch in range(header[0]):
-                    print("ch", ch)
-                    event.append(TDCs[whichTDC].readOutputBuffer(VMEbridge,handle))
-                    #print("\ntime:",TDCs[whichTDC].converter(TDCs[whichTDC].readOutputBuffer(VMEbridge,handle)))
-                #time.sleep(2)
+                os.chdir(scanFol)
 
-                print("\n",event,"\n")
+                fOutDIP = ROOT.TFile(dipOut,"RECREATE")
+                fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
+                fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
+                
+                fOutDAQ.cd()
+                treeDAQ.Write()
+                fOutDAQ.Close()
 
+                fOutCAEN.cd()
+                ch = 0
+                for slot in range(len(slots)):
+                    for iCh, channel in enumerate(channels[slot]):
+                        hHVapp[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_app_"+str(i+1))
+                        hHVeff[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_eff_"+str(i+1))
+                        hHVmon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_mon_"+str(i+1))
+                        hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
+                        ch=ch+1
+                fOutCAEN.Close()
+
+                fOutDIP.cd()
+                hTemp.Write("Temperature_HV_"+str(i+1))
+                hPress.Write("Pressure_HV_"+str(i+1))
+                hHumi.Write("Humidity_HV_"+str(i+1))
+                hFlow.Write("Flow_HV_"+str(i+1))
+                fOutDIP.Close()
+
+                os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
+
+                #Reset names and increase HV point counter
+                dipOut = "scan_"+str(newRun)+"_DIP_"
+                caenOut = "scan_"+str(newRun)+"_CAEN_"
+                daqOut = "scan_"+str(newRun)+"_DAQ_"
+               
+                break
+        
+            else:
+                VMEbridge.stopPulser(handle,0)
                 IRQlevel = hex(VMEbridge.checkIRQ(handle))
-                print("IRQ level a fine loop ",IRQlevel)
-                
-                if IRQlevel == hex(0x0):
-                    print(type(event), event)
-                    lChannels,lTimes = map(list,zip(*event))
-                    print(lChannels, lTimes)
-                    
-                    size[0] = len(lChannels)
-                    
-                    #Fill tree
-                    for i in range(len(lChannels)):
-                        aChannels.append(lChannels[i])
-                        aTimes.append(lTimes[i])
-                    
-                    if debug:
-                        print("memory address of a",hex(id(a)))
-                        print("channels as array before: ",aChannels, type(aChannels))
-                        print("times as array before: ",aTimes, type(aTimes))
-                    
-                    treeDAQ.SetBranchAddress('channels',aChannels)
-                    treeDAQ.SetBranchAddress('times',aTimes)
+                event = []
 
-                    treeDAQ.Fill()
+                while IRQlevel != hex(0x0):
+                    VMEbridge.disableIRQ(handle,111)
+
+                    VMEbridge.startPulser(handle,0)
+                    IRQvector = VMEbridge.iackCycle(handle,int(IRQlevel,16),0x01)
+                    print("IRQ ricevuta")
+                    print("IRQvector: ",IRQvector) 
+                    print("IRQlevel: ",IRQlevel)
+                    header = []
                     
-                    del aChannels[:]
-                    del aTimes[:]
-                    del event[:]
+                    whichTDC = -1
+                    
+                    if IRQvector == hex(0x1):
+                        whichTDC = 0
+                    elif IRQvector == hex(0x2):
+                        whichTDC = 1
+                    elif IRQvector == hex(0x3):
+                        whichTDC = 2
 
-                    print("\n\n scaler counts nel loop :", VMEbridge.readRegister(handle,0x1D),"\n\n")
+                    header = TDCs[whichTDC].readOutputBuffer(VMEbridge,handle)
+                    print("\n", "Header 0:",header[0],"\n")
+                    
+                    for ch in range(header[0]):
+                        print("ch", ch)
+                        event.append(TDCs[whichTDC].readOutputBuffer(VMEbridge,handle))
+                        #print("\ntime:",TDCs[whichTDC].converter(TDCs[whichTDC].readOutputBuffer(VMEbridge,handle)))
 
-                    if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
-                        print("Desidered trigger number reached, moving to the next HV point")
-                        print("Numero di trigger impostati: ",int(hex(trigNum[0]),16))
-                        print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
-                        fOutDAQ.cd()
-                        treeDAQ.Write()
-                        fOutDAQ.Close()
-                        break
+                    print("\n",event,"\n")
 
-                    VMEbridge.enableIRQ(handle,111)
-                    #event.clear()
+                    IRQlevel = hex(VMEbridge.checkIRQ(handle))
+                    print("IRQ level a fine loop ",IRQlevel)
+                    
+                    if IRQlevel == hex(0x0):
+                        print(type(event), event)
+                        lChannels,lTimes = map(list,zip(*event))
+                        print(lChannels, lTimes)
+                        
+                        size[0] = len(lChannels)
+                        
+                        #Fill tree
+                        for j in range(len(lChannels)):
+                            aChannels.append(lChannels[j])
+                            aTimes.append(lTimes[j])
+                        
+                        if debug:
+                            print("memory address of a",hex(id(a)))
+                            print("channels as array before: ",aChannels, type(aChannels))
+                            print("times as array before: ",aTimes, type(aTimes))
+                        
+                        treeDAQ.SetBranchAddress('channels',aChannels)
+                        treeDAQ.SetBranchAddress('times',aTimes)
 
-                    time.sleep(1)
+                        treeDAQ.Fill()
+                        
+                        del aChannels[:]
+                        del aTimes[:]
+                        del event[:]
+
+                        print("\n\n scaler counts nel loop :", VMEbridge.readRegister(handle,0x1D),"\n\n")
+
+                        #if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16):
+                        if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
+                            print("Desidered trigger number reached, moving to the next HV point")
+                            print("Numero di trigger impostati: ",int(hex(trigNum[0]),16))
+                            print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
+                            os.chdir(scanFol)
+
+                            fOutDIP = ROOT.TFile(dipOut,"RECREATE")
+                            fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
+                            fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
+                            
+                            fOutDAQ.cd()
+                            treeDAQ.Write()
+                            fOutDAQ.Close()
+
+                            fOutCAEN.cd()
+                            ch = 0
+                            for slot in range(len(slots)):
+                                for iCh, channel in enumerate(channels[slot]):
+                                    hHVapp[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_app_"+str(i+1))
+                                    hHVeff[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_eff_"+str(i+1))
+                                    hHVmon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_mon_"+str(i+1))
+                                    hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
+                                    ch=ch+1
+                            fOutCAEN.Close()
+
+                            fOutDIP.cd()
+                            hTemp.Write("Temperature_HV_"+str(i+1))
+                            hPress.Write("Pressure_HV_"+str(i+1))
+                            hHumi.Write("Humidity_HV_"+str(i+1))
+                            hFlow.Write("Flow_HV_"+str(i+1))
+                            fOutDIP.Close()
+
+                            os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
+
+                            #Reset names and increase HV point counter
+                            dipOut = "scan_"+str(newRun)+"_DIP_"
+                            caenOut = "scan_"+str(newRun)+"_CAEN_"
+                            daqOut = "scan_"+str(newRun)+"_DAQ_"
+                            
+                            break
+
+                        VMEbridge.enableIRQ(handle,111)
+                        #event.clear()
+
+                        time.sleep(1)
+
+    print("\n\n --- Efficiency scan is over --- \n\n")
 
 
 if __name__ == "__main__":
