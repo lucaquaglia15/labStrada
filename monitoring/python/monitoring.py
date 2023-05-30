@@ -42,25 +42,29 @@ while True: #infinte loop to listen to data from arduino and post it to db
         #temperature sensor
         print("Temperature = " + str(split_data[0]) + " °C")
         print("Pressure = " + str(split_data[1]) + " mbar")
-        print("Humidity = " + str(split_data[2]) + " %")
+        #print("Humidity = " + str(split_data[2]) + " %")
 
-        val = (split_data[0],split_data[1],split_data[2])
-        sql = "INSERT INTO envPar (temperature, pressure, humidity) VALUES (%s, %s, %s)" #sql query
+        #val = (split_data[0],split_data[1],split_data[2])
+        val = (split_data[0],split_data[1])
+        sql = "INSERT INTO envPar (temperature, pressure) VALUES (%s, %s)" #sql query
         mycursor.execute(sql, val)
 
         mydb.commit() #execute query
 
         #Flow sensor
-        print("V reading = " + str(split_data[3]) + " V")
+        #print("V reading = " + str(split_data[3]) + " V")
+        print("V reading = " + str(split_data[2]) + " V")
         
         #Invert calibration function
-        p[0] = p[0]-float(split_data[3])
+        #p[0] = p[0]-float(split_data[3])
+        p[0] = p[0]-float(split_data[2])
         print(p[0])
         print(p.r)
 
         airFlow = 0.
 
-        voltage = float(split_data[3])
+        #voltage = float(split_data[3])
+        voltage = float(split_data[2])
         for x in p.r:
             if x <= 1 and x >= 0:    
               airFlow = float(x)*60

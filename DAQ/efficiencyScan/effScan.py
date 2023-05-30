@@ -22,7 +22,8 @@ def ptCorr(temp, press, hvEff):
 
 #Get last temp, press and humi from db
 def getPT(mycursor):
-    getLastEnv = ("SELECT date, temperature, pressure, humidity FROM envPar ORDER BY date DESC LIMIT 1")
+    #getLastEnv = ("SELECT date, temperature, pressure, humidity FROM envPar ORDER BY date DESC LIMIT 1")
+    getLastEnv = ("SELECT date, temperature, pressure FROM envPar ORDER BY date DESC LIMIT 1")
     mycursor.execute(getLastEnv)
 
     lastEnv = mycursor.fetchall()
@@ -90,10 +91,10 @@ def main():
     aTimes = array.array('f')
 
     #Create TTree and branch it to save DAQ data
-    treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
-    treeDAQ.Branch('size', size, 'size/I')
-    treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
-    treeDAQ.Branch("times",aTimes,'times[size]/F')
+    #treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
+    #treeDAQ.Branch('size', size, 'size/I')
+    #treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
+    #treeDAQ.Branch("times",aTimes,'times[size]/F')
     
     print("Getting configuration file for V488A TDC")
     
@@ -225,6 +226,12 @@ def main():
     #Begin for cycle on HV points
     for i in range(int(len(constants.measTime))):
 
+        #Create TTree to save DAQ data
+        treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
+        treeDAQ.Branch('size', size, 'size/I')
+        treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
+        treeDAQ.Branch("times",aTimes,'times[size]/F')
+
         print("starting pulser")
         VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
         VMEbridge.setOutputConf(handle,0,0,0,6)
@@ -265,6 +272,14 @@ def main():
         caenOut = caenOut+"HV"+str(i+1)+".root"
         daqOut = daqOut+"HV"+str(i+1)+".root"
 
+        os.chdir(scanFol)
+
+        fOutDIP = ROOT.TFile(dipOut,"RECREATE")
+        fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
+        fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
+
+        os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
+
         #Declare list of histograms to save CAEN values
         hHVmon = []
         hHVapp = []
@@ -303,7 +318,7 @@ def main():
         lastDate = lastEnv[0][0]
         delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-        while delta > 12000: #1200 s = logger stopped for more than 20 minutes
+        while delta > 1200: #1200 s = logger stopped for more than 20 minutes
             mydb.cmd_refresh(1)
             lastEnv = getPT(mycursor)
             lastDate = lastEnv[0][0]
@@ -375,7 +390,7 @@ def main():
                 lastDate = lastEnv[0][0]
                 delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
-                while delta > 12000:
+                while delta > 1200:
                     t_end = t_end + 3 #this is needed because the way to measure residual time is to compute t_end before the start of measuring time
                     #but even if the PT logging is stopped, the time still passes. In this way we extend the end of run by 3 seconds, which is the waiting
                     #time at the end of (while delta > 1200). This is precise to ~0.1 s, it can be improved by measuring how long the loop is but for the moment
@@ -395,7 +410,7 @@ def main():
 
                 hTemp.Fill(lastEnv[0][1]) #Fill temperature histo
                 hPress.Fill(lastEnv[0][2]) #Fill pressure histo
-                hHumi.Fill(lastEnv[0][3]) #Fill humidity histo
+                #hHumi.Fill(lastEnv[0][3]) #Fill humidity histo
                 #hFlow.Fill(lastEnv[0][4]) #Fill flow histo
            
                 for slot in range(len(slots)):
@@ -431,13 +446,13 @@ def main():
                 
                 os.chdir(scanFol)
 
-                fOutDIP = ROOT.TFile(dipOut,"RECREATE")
-                fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
-                fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
+                #fOutDIP = ROOT.TFile(dipOut,"RECREATE")
+                #fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
+                #fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
                 
                 fOutDAQ.cd()
                 treeDAQ.Write()
-                fOutDAQ.Close()
+                 #fOutDAQ.Close()
 
                 fOutCAEN.cd()
                 ch = 0
@@ -448,22 +463,20 @@ def main():
                         hHVmon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_mon_"+str(i+1))
                         hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                         ch=ch+1
-                fOutCAEN.Close()
+                #fOutCAEN.Close()
 
                 fOutDIP.cd()
                 hTemp.Write("Temperature_HV_"+str(i+1))
                 hPress.Write("Pressure_HV_"+str(i+1))
                 hHumi.Write("Humidity_HV_"+str(i+1))
                 hFlow.Write("Flow_HV_"+str(i+1))
-                fOutDIP.Close()
+                
+                #fOutDAQ.Close()
+                #fOutCAEN.Close()
+                #fOutDIP.Close()
 
                 os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
-
-                #Reset names and increase HV point counter
-                dipOut = "scan_"+str(newRun)+"_DIP_"
-                caenOut = "scan_"+str(newRun)+"_CAEN_"
-                daqOut = "scan_"+str(newRun)+"_DAQ_"
-               
+                
                 break
         
             else:
@@ -472,7 +485,7 @@ def main():
                 event = []
 
                 while IRQlevel != hex(0x0):
-                    VMEbridge.disableIRQ(handle,111)
+                    #VMEbridge.disableIRQ(handle,111)
 
                     VMEbridge.startPulser(handle,0)
                     IRQvector = VMEbridge.iackCycle(handle,int(IRQlevel,16),0x01)
@@ -538,13 +551,13 @@ def main():
                             print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
                             os.chdir(scanFol)
 
-                            fOutDIP = ROOT.TFile(dipOut,"RECREATE")
-                            fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
-                            fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
+                            #fOutDIP = ROOT.TFile(dipOut,"RECREATE")
+                            #fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
+                            #fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
                             
                             fOutDAQ.cd()
                             treeDAQ.Write()
-                            fOutDAQ.Close()
+                            #fOutDAQ.Close()
 
                             fOutCAEN.cd()
                             ch = 0
@@ -555,28 +568,38 @@ def main():
                                     hHVmon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_mon_"+str(i+1))
                                     hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                                     ch=ch+1
-                            fOutCAEN.Close()
+                            #fOutCAEN.Close()
 
                             fOutDIP.cd()
                             hTemp.Write("Temperature_HV_"+str(i+1))
                             hPress.Write("Pressure_HV_"+str(i+1))
                             hHumi.Write("Humidity_HV_"+str(i+1))
                             hFlow.Write("Flow_HV_"+str(i+1))
-                            fOutDIP.Close()
+                            #fOutDAQ.Close()
+                            #fOutCAEN.Close()
+                            #fOutDIP.Close()
 
                             os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
-
-                            #Reset names and increase HV point counter
-                            dipOut = "scan_"+str(newRun)+"_DIP_"
-                            caenOut = "scan_"+str(newRun)+"_CAEN_"
-                            daqOut = "scan_"+str(newRun)+"_DAQ_"
-                            
                             break
 
                         VMEbridge.enableIRQ(handle,111)
                         #event.clear()
-
                         time.sleep(1)
+
+                    #exit from wait for IRQ loop
+                    #break
+
+        #Reset names and increase HV point counter
+        dipOut = "scan_"+str(newRun)+"_DIP_"
+        caenOut = "scan_"+str(newRun)+"_CAEN_"
+        daqOut = "scan_"+str(newRun)+"_DAQ_"
+
+        fOutDAQ.Close()
+        fOutCAEN.Close()
+        fOutDIP.Close()
+
+    #Delete tree for next HV point
+    del treeDAQ
 
     print("\n\n --- Efficiency scan is over --- \n\n")
 

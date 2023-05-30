@@ -45,7 +45,7 @@ void loop() {
   //Values set up for serial communication
   temp = bme.readTemperature();
   press = bme.readPressure()/100.0F;
-  humi = bme.readHumidity();
+  //humi = bme.readHumidity();
 
   voltage = analogRead(inputPin)*(3.3/4096) + 0.12;
   
@@ -53,8 +53,8 @@ void loop() {
   Serial.print(temp);
   Serial.print("x");
   Serial.print(press);
-  Serial.print("x");
-  Serial.print(humi);
+  //Serial.print("x");
+  //Serial.print(humi);
   Serial.print("x");
   Serial.println(voltage);
 

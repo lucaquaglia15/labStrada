@@ -172,7 +172,7 @@ def main():
                 elemHVeff = ROOT.TH1F(str(chName[slot][iCh].decode('utf-8'))+"_HVeff_"+str(i+1),str(chName[slot][iCh])+"_HVeff_"+str(i+1),1000,0,1)
                 elemHVeff.GetXaxis().SetCanExtend(True)
                 elemImon = ROOT.TH1F(str(chName[slot][iCh].decode('utf-8'))+"_Imon_"+str(i+1),str(chName[slot][iCh])+"_Imon_"+str(i+1),1000,0,1)
-                elemImon.GetXaxis().SetCanExtend(True)
+                elemImon.GetXaxis().SetCanExtend(True) 
                 hHVmon.append(elemHVmon)
                 hHVapp.append(elemHVapp)
                 hHVeff.append(elemHVeff)
