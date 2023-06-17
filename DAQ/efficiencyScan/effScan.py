@@ -58,6 +58,12 @@ def main():
 
     print("---Efficiency scan starting---")
 
+    arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type)
+    
+    while len(arguments) < 3: #Check if size of arguments is smaller than 3 (it means that some argument is missing by mistake)
+        #add "" until size 3 is reached, some information on the run will be lost but it doesn't matter
+        arguments.append("")
+
     mydb = mysql.connector.connect( #db object
         host="localhost",
         user="root",
@@ -73,8 +79,8 @@ def main():
     newRun = lastRun[0][0] + 1 #new run = last run + 1
 
     #insert new run in db
-    run = [newRun] #A list is needed due to how mysql query works
-    sendNewRun = "INSERT INTO efficiencyScan (runNumber) VALUES (%s)"
+    run = [newRun,arguments[1],arguments[2]] #A list is needed due to how mysql query works
+    sendNewRun = "INSERT INTO efficiencyScan (runNumber,mixture,runType) VALUES (%s,%s,%s)"
     mycursor.execute(sendNewRun, run)
     mydb.commit()
 

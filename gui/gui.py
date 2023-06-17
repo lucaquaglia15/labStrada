@@ -206,22 +206,23 @@ def main():
         if event == "Start scan":
             if values['scanType'] == 'Current scan':
                 print('You selected current scan')
-                os.system("python3 /home/pcald32/labStrada/DAQ/currentScan/hvScan.py")
+                #print(values['mixture'][0][0])
+                os.system("python3 /home/pcald32/labStrada/DAQ/currentScan/hvScan.py " + str(values['mixture'][0][0] + " currentScan"))
 
             elif values['scanType'] == 'Efficiency scan':
                 print('You selected efficiency scan')
-                os.system("python3 /home/pcald32/labStrada/DAQ/efficiencyScan/effScan.py")
+                os.system("python3 /home/pcald32/labStrada/DAQ/efficiencyScan/effScan.py " + str(values['mixture'][0][0] + " efficiencyScan"))
 
             elif values['scanType'] == 'Noise scan':
                 print('You selected noise scan')
-                os.system("python3 /home/pcald32/labStrada/DAQ/efficiencyScan/effScan.py")
+                os.system("python3 /home/pcald32/labStrada/DAQ/efficiencyScan/effScan.py " + str(values['mixture'][0][0] + " noiseScan"))
 
             elif values['scanType'] == 'Stability scan':
                 print('You selected Stability scan')
 
             elif values['scanType'] == 'Resistivity measurement':
                 print('You selected resistivity measurement')
-                os.system("python3 /home/pcald32/labStrada/DAQ/currentScan/hvScan.py")
+                os.system("python3 /home/pcald32/labStrada/DAQ/currentScan/hvScan.py " + str(values['mixture'][0][0] + " argonScan"))
             
             break
 
