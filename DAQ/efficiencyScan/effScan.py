@@ -370,7 +370,7 @@ def main():
         start = time.perf_counter() #start timer
     
         #temporaneo
-        #contaMille = 0
+        contaMille = 0
 
         if hex(VMEbridge.checkIRQ(handle)) == hex(0x0):
             waitingIRQ = True
@@ -435,12 +435,13 @@ def main():
 
                 VMEbridge.stopPulser(handle,0)
 
-            #if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
-            #    contaMille = contaMille+1
+            if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
+                contaMille = contaMille+1
 
-            #if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16):
-            if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
+            if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16):
+            #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
                 print("Desidered trigger number reached, moving to the next HV point")
+                print("contaMille",contaMille)
                 print("Numero di trigger impostati: ",int(hex(trigNum[0]),16))
                 print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
                 
@@ -543,10 +544,12 @@ def main():
                         del event[:]
 
                         print("\n\n scaler counts nel loop :", VMEbridge.readRegister(handle,0x1D),"\n\n")
+                        print("contamille",contaMille)
 
-                        #if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16):
-                        if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
+                        if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16):
+                        #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
                             print("Desidered trigger number reached, moving to the next HV point")
+                            print("contaMille",contaMille)
                             print("Numero di trigger impostati: ",int(hex(trigNum[0]),16))
                             print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
                             os.chdir(scanFol)
