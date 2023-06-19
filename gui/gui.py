@@ -268,6 +268,7 @@ def main():
             [sg.Combo(['Current scan','Efficiency scan','Noise scan', 'Stability scan', 'Resistivity measurement'],default_value='Current scan',key='scanType')],
             [sg.Text('Choose Mixture ',size=(30, 1), font=('Lucida',12,'bold'),justification='left')],
             [sg.Listbox(values=totComposition, select_mode='single', key='mixture', size=(100, 6),enable_events=True)],
+            #[sg.Listbox(values=" ".join(totComposition), select_mode='single', key='mixture', size=(100, 6),enable_events=True)]         
             [sg.Text('Enter new gas mixture',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('New mixture', font=('Times New Roman',12))],
             [sg.Text('Delete gas mixture',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('Delete mixture', font=('Times New Roman',12),disabled=True,key='deleteMixture')],
             [sg.Text('Delete run',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('Delete scan', font=('Times New Roman',12),key='deleteScan')],
