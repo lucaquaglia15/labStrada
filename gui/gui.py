@@ -2,28 +2,67 @@ import PySimpleGUI as sg
 import mysql.connector #to connect to db to send the data
 import psutil
 import os
+import shutil
 
 def deleteScan(db,cursor,scanType):
     print("Opening delete scan panel")
 
-    deleteLayout=[
+    deleteScanLayout=[
+            [sg.Text('Deleting run type '+scanType,size=(50, 1), font=('Lucida',12,'bold'),justification='left')],
             [sg.Text('Enter run number',size=(20, 1), font=('Lucida',12,'bold'),justification='left')],
-            [sg.Text('Run number', size=(15, 1)), sg.InputText(key='runNum',default_text='0')],
+            [sg.Text('Run number', size=(15, 1)), sg.InputText(key='runNum',default_text='')],
             [sg.Button('Delete run',font=('Times New Roman',12)),sg.Button('Back', font=('Times New Roman',12))]
             ]
 
-    deleteScanWin =sg.Window('Delete run',deleteLayout)
+    deleteScanWin =sg.Window('Delete run',deleteScanLayout)
 
     while True:
         event, values = deleteScanWin.read()
 
-        if event == 'Delete run' and values['runNum'] != "": #delete run
+        if event == "Back" or event == sg.WIN_CLOSED:
+            break
+
+        elif event == 'Delete run' and values['runNum'] != "": #delete run
+            #errorWindow("Confirm scan deletion","Are you sure you want to delete the scan?")
+            
             #Delete locally
+            if scanType == 'Current scan' or scanType == 'Resistivity scan': #current scan
+                dir = '/home/pcald32/runs/currentScans/scan_'+values['runNum']
+                dbTable = 'currentScan'
+                try:
+                    shutil.rmtree(dir)
+                except Exception as err:
+                    print("Run does not exist in local disk!")
+            
+            elif scanType == 'Efficiency scan' or scanType == 'Noise scan': #Efficiency or noise scan
+                dir = '/home/pcald32/runs/efficiencyScans/scan_'+values['runNum']
+                dbTable = 'efficiencyScan'
+                try:
+                    shutil.rmtree(dir)
+                except Exception as err:
+                    print("Run does not exist in local disk!")
+            
+            elif scanType == 'Stability scan': #Stability scan
+                print('Not yet implemented')
+                #dir = '/home/pcald32/runs/stabilityScan/scan_'+values['runNum']
+                #dbTable = 'stabilityScan'
+                #try:
+                #    shutil.rmtree(dir)
+                #except Exception as err:
+                #    print("Run does not exist in local disk!")
 
             #Delete from db
+            deleteRun = ("DELETE FROM labStrada.%s WHERE runNumber = %s") %(dbTable,values['runNum'])
+            cursor.execute(deleteRun)
+            db.commit()
+
+            break
             
         elif event == 'Delete run' and values['runNum'] == "": #missing run number -> error
             errorWindow("Delete run error","Please entrer run number")
+            break
+
+    deleteScanWin.close()
 
 #Fetch gas mixtures from db
 def fetchGasMixtures(db,cursor):
@@ -54,7 +93,7 @@ def fetchGasMixtures(db,cursor):
     return totComposition
 
 def deleteMixture(db,cursor,mixName):
-    print(mixName)
+    #print(mixName)
     delete = ("DELETE FROM labStrada.mixtures WHERE name = (%s)")
     name = (mixName,)
     cursor.execute(delete,name)
@@ -92,7 +131,7 @@ def newMixture(db,cursor):
         #Add new mixture to the db
         if event == "Insert mixture":
             for key in values:
-                print(key, values[key])
+                #print(key, values[key])
                 if key != "name" and float(values[key]) > 0:
                     sum = sum + float(values[key])
 
@@ -231,7 +270,7 @@ def main():
             [sg.Listbox(values=totComposition, select_mode='single', key='mixture', size=(100, 6),enable_events=True)],
             [sg.Text('Enter new gas mixture',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('New mixture', font=('Times New Roman',12))],
             [sg.Text('Delete gas mixture',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('Delete mixture', font=('Times New Roman',12),disabled=True,key='deleteMixture')],
-            [sg.Text('Delete scan',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('Delete scan', font=('Times New Roman',12),key='deleteScan')],
+            [sg.Text('Delete run',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('Delete scan', font=('Times New Roman',12),key='deleteScan')],
             [sg.Button('Start scan', font=('Times New Roman',12)),sg.Button('Abort scan', font=('Times New Roman',12))]
             ]
 
@@ -269,15 +308,15 @@ def main():
             win['mixture'].update(updatedMixtures)
 
         #Delete gas mixture new mixture in db
-        elif event == "Delete mixture":
+        if event == "deleteMixture":
             deleteMixture(mydb,mycursor,values['mixture'][0][0])
             mydb.cmd_refresh(1)
             updatedMixtures = fetchGasMixtures(mydb,mycursor)
             win['mixture'].update(updatedMixtures)
 
         #Delete scan data both locally and from db
-        if event == "Delete scan":
-            deleteScan(mydb,mycursor,values[''])
+        if event == 'deleteScan':
+            deleteScan(mydb,mycursor,values['scanType'])
         
         #Start scan
         if event == "Start scan":
