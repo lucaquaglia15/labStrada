@@ -17,3 +17,9 @@ in a separate database). An arbitrary number of detectors can, in principle, be 
 
 The monitoring folder contains an Arduino code (ESP32 is used), to monitor the environmental temperature and pressure (using a BME280 sensor) and the gas
 flow (with an Omron D6F-P0010A2 flow sensor) and to upload such data in a mysql database, saved locally in the DAQ machine
+
+A simple GUI has also been developed for this project. It can be used to control (almost) all aspect of the data taking such as selecting the run type, selecting and deleteing the gas mixture and delete data from runs, both locally and on the mysql db. The GUI has been developed using the pysimplegui module and it is found in labStrada/gui/gui.py
+
+According to the user input on the gui, the different runs are started. For the future it might be nice to also be able to control which high voltage channels are included in the run, RPC name and so on. The GUI also informs the user on the running status of the monitoring scripts (for now it doesn't prevent the user to start a run even if the monitoring scripts are not running, maybe it would be nice to implement in the future).
+
+A small DCS UI is also being implemented (labStrada/gui/testDCS.py) just for fun and to practice with python GUI creation.
