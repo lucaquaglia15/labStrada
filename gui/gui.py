@@ -32,7 +32,7 @@ def deleteScan(db,cursor,scanType):
                 try:
                     shutil.rmtree(dir)
                 except Exception as err:
-                    print("Run does not exist in local disk!")
+                    errorWindow("File not found","Run does not exist in local disk!")
             
             elif scanType == 'Efficiency scan' or scanType == 'Noise scan': #Efficiency or noise scan
                 dir = '/home/pcald32/runs/efficiencyScans/scan_'+values['runNum']
@@ -40,25 +40,32 @@ def deleteScan(db,cursor,scanType):
                 try:
                     shutil.rmtree(dir)
                 except Exception as err:
-                    print("Run does not exist in local disk!")
+                    errorWindow("File not found","Run does not exist in local disk!")
             
             elif scanType == 'Stability scan': #Stability scan
-                print('Not yet implemented')
+                print('Stability scan not yet implemented')
                 #dir = '/home/pcald32/runs/stabilityScan/scan_'+values['runNum']
                 #dbTable = 'stabilityScan'
                 #try:
                 #    shutil.rmtree(dir)
                 #except Exception as err:
                 #    print("Run does not exist in local disk!")
+                #    errorWindow("File not found","Run does not exist in local disk!")
 
-            #Delete from db
-            deleteRun = ("DELETE FROM labStrada.%s WHERE runNumber = %s") %(dbTable,values['runNum'])
-            cursor.execute(deleteRun)
-            db.commit()
+            #Delete from db, after checking if run exists
+            checkForRun = ("SELECT EXISTS(SELECT * FROM labStrada.%s WHERE runNumber=%s)") %(dbTable,values['runNum'])
+            
+            if  cursor.execute(checkForRun) == 1:
+                deleteRun = ("DELETE FROM labStrada.%s WHERE runNumber = %s") %(dbTable,values['runNum'])
+                cursor.execute(deleteRun)
+                db.commit()
+            
+            else:
+                errorWindow("File not found","Run does not exist in database!")
 
             break
             
-        elif event == 'Delete run' and values['runNum'] == "": #missing run number -> error
+        elif event == 'Delete run' and values['runNum'] == "": #number of run to be deleted not provided -> error
             errorWindow("Delete run error","Please entrer run number")
             break
 
@@ -85,15 +92,15 @@ def fetchGasMixtures(db,cursor):
                 if columns[i][0] != 'name':
                     mixComposition.append(str(element)+"% "+columns[i][0])
                 else:
-                    mixComposition.append(str(element))
+                    mixComposition.append(str(element)+":")
     
-        totComposition.append(mixComposition[:])
+        #totComposition.append(mixComposition[:])
+        totComposition.append(' '.join(mixComposition[:]))
         mixComposition = []
 
     return totComposition
 
 def deleteMixture(db,cursor,mixName):
-    #print(mixName)
     delete = ("DELETE FROM labStrada.mixtures WHERE name = (%s)")
     name = (mixName,)
     cursor.execute(delete,name)
@@ -131,7 +138,6 @@ def newMixture(db,cursor):
         #Add new mixture to the db
         if event == "Insert mixture":
             for key in values:
-                #print(key, values[key])
                 if key != "name" and float(values[key]) > 0:
                     sum = sum + float(values[key])
 
@@ -265,10 +271,9 @@ def main():
             [sg.Text('Gas kill',size=(20,1),font='Lucida',justification='left'),
             sg.Text(gasKillText,size=(20,1),font=('Lucida',12,'bold'),text_color=gasKillColor,justification='left')],
             [sg.Text('Choose run type',size=(20, 1), font=('Lucida',12,'bold'),justification='left')],
-            [sg.Combo(['Current scan','Efficiency scan','Noise scan', 'Stability scan', 'Resistivity measurement'],default_value='Current scan',key='scanType')],
+            [sg.Combo(['Current scan','Efficiency scan','Noise scan', 'Stability scan', 'Resistivity measurement'],default_value='Current scan',font=('Lucida',12),key='scanType')],
             [sg.Text('Choose Mixture ',size=(30, 1), font=('Lucida',12,'bold'),justification='left')],
-            [sg.Listbox(values=totComposition, select_mode='single', key='mixture', size=(100, 6),enable_events=True)],
-            #[sg.Listbox(values=" ".join(totComposition), select_mode='single', key='mixture', size=(100, 6),enable_events=True)]         
+            [sg.Listbox(values=totComposition, select_mode='single', key='mixture', size=(100, 6),enable_events=True,font=('Lucida',12,'bold'))],
             [sg.Text('Enter new gas mixture',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('New mixture', font=('Times New Roman',12))],
             [sg.Text('Delete gas mixture',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('Delete mixture', font=('Times New Roman',12),disabled=True,key='deleteMixture')],
             [sg.Text('Delete run',size=(30,1),font=('Lucida',12,'bold'),justification='left'),sg.Button('Delete scan', font=('Times New Roman',12),key='deleteScan')],
@@ -292,13 +297,13 @@ def main():
             if metadata == selections:
                 win['mixture'].update(set_to_index=[])
                 win['mixture'].metadata = []
-                values['mixture'] = ""
+                values['mixture'] = []
                 win['deleteMixture'].update(disabled=True)
             else:
                 win['mixture'].metadata = values['mixture']
 
         #Enable delete mixture buttton if a gas mixture is selected from the list       
-        if str(values['mixture']) != "":    
+        if values['mixture'] != []:    
             win['deleteMixture'].update(disabled=False)
         
         #Enter new mixture in db
@@ -310,7 +315,7 @@ def main():
 
         #Delete gas mixture new mixture in db
         if event == "deleteMixture":
-            deleteMixture(mydb,mycursor,values['mixture'][0][0])
+            deleteMixture(mydb,mycursor,(values['mixture'][0]).split(':')[0])
             mydb.cmd_refresh(1)
             updatedMixtures = fetchGasMixtures(mydb,mycursor)
             win['mixture'].update(updatedMixtures)
@@ -323,7 +328,6 @@ def main():
         if event == "Start scan":
             if values['scanType'] == 'Current scan': #General current scan
                 print('You selected current scan')
-                #print(values['mixture'][0][0])
                 os.system("python3 /home/pcald32/labStrada/DAQ/currentScan/hvScan.py " + str(values['mixture'][0][0] + " currentScan"))
 
             elif values['scanType'] == 'Efficiency scan': #efficiency scan (muon trigger)
