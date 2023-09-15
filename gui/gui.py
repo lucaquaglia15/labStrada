@@ -3,6 +3,7 @@ import mysql.connector #to connect to db to send the data
 import psutil
 import os
 import shutil
+import socket as sock
 
 def deleteScan(db,cursor,scanType):
     print("Opening delete scan panel")
@@ -52,13 +53,16 @@ def deleteScan(db,cursor,scanType):
                 #    print("Run does not exist in local disk!")
                 #    errorWindow("File not found","Run does not exist in local disk!")
 
-            #Delete from db, after checking if run exists
-            checkForRun = ("SELECT EXISTS(SELECT * FROM labStrada.%s WHERE runNumber=%s)") %(dbTable,values['runNum'])
-            
-            if  cursor.execute(checkForRun) == 1:
-                deleteRun = ("DELETE FROM labStrada.%s WHERE runNumber = %s") %(dbTable,values['runNum'])
-                cursor.execute(deleteRun)
+            #Delete from db, after checking if run exists            
+            checkForRun = "SELECT EXISTS(SELECT * FROM labStrada.{table} WHERE runNumber=%s)"            
+            cursor.execute(checkForRun.format(table=dbTable),(values['runNum'],))
+            isRunIndB = cursor.fetchall() #If run is in db -> true
+                              
+            if isRunIndB[0][0] == 1:
+                deleteRun = "DELETE FROM labStrada.{table} WHERE runNumber = %s" 
+                cursor.execute(deleteRun.format(table=dbTable),(values['runNum'],))
                 db.commit()
+                print("Deleting from dB")
             
             else:
                 errorWindow("File not found","Run does not exist in database!")
@@ -214,6 +218,12 @@ def get_pids_by_script_name(script_name):
 
 #main function for GUI
 def main():
+
+    #Create socket to check status of Grafana server
+    create_socket = sock.socket(sock.AF_INET, sock.SOCK_STREAM)
+    destination = ("127.0.0.1", 3000)
+    grafanaResult = create_socket.connect_ex(destination)
+
     #Connect to db to get mixture names
     mydb = mysql.connector.connect( 
             host="localhost",
@@ -221,8 +231,10 @@ def main():
             password="pcald32",
             database="labStrada"
         )
-    
-    mycursor = mydb.cursor()
+    if mydb.is_connected() == False:
+        print("Not connected to mysql")
+
+    mycursor = mydb.cursor(buffered=True)
 
     totComposition = fetchGasMixtures(mydb,mycursor)
     
@@ -230,6 +242,8 @@ def main():
     hvMonit = True #If True the hv monitoring script is running
     gasKill = True #If True the gas kill script is running
     envMonit = True #If True the environmental monitoring script is running
+    grafana = True #If True grafana server is running
+    mySQL = True #If True mysql server is running
 
     #if pid is = [] -> script is not running
     if get_pids_by_script_name('monitoring.py') == []:
@@ -238,6 +252,10 @@ def main():
         hvMonit = False
     if get_pids_by_script_name('gasKill.py') == []:
         gasKill = False
+    if mydb.is_connected() == False:
+        mySQL = False
+    if grafanaResult != 0: #If status of socket readout != 0 -> not connected
+        grafana = False
 
     #Change color of OK/NOT OK if script is running or not
     if hvMonit == True:
@@ -261,15 +279,33 @@ def main():
         envMonitColor = 'red'
         envMonText = 'NOT OK'
 
+    if grafana == True:
+        grafanaColor = 'lime green'
+        grafanaText = 'OK'
+    elif grafana == False:
+        grafanaColor = 'red'
+        grafanaText = 'NOT OK'
+
+    if mySQL == True:
+        mySQLColor = 'lime green'
+        mySQLText = 'OK'
+    elif mySQL == False:
+        mySQLColor = 'red'
+        mySQLText = 'NOT OK'
+
     #Layout of main GUI panel
     layout=[
             [sg.Text('Script status',size=(20, 1), font=('Lucida',12,'bold'),justification='left')],
             [sg.Text('Envorinoment monitor',size=(20,1),font='Lucida',justification='left'),
-            sg.Text(envMonText,size=(20,1),font=('Lucida',12,'bold'),text_color=envMonitColor,justification='left')],
+            sg.Text(envMonText,size=(20,1),font=('Lucida',12,'bold'),text_color=envMonitColor,justification='left',key='envMonitText')],
             [sg.Text('HV monitor',size=(20,1),font='Lucida',justification='left'),
-            sg.Text(hvText,size=(20,1),font=('Lucida',12,'bold'),text_color=hvColor,justification='left')],
+            sg.Text(hvText,size=(20,1),font=('Lucida',12,'bold'),text_color=hvColor,justification='left',key='hvMonitText')],
             [sg.Text('Gas kill',size=(20,1),font='Lucida',justification='left'),
-            sg.Text(gasKillText,size=(20,1),font=('Lucida',12,'bold'),text_color=gasKillColor,justification='left')],
+            sg.Text(gasKillText,size=(20,1),font=('Lucida',12,'bold'),text_color=gasKillColor,justification='left',key='gasKillText')],
+            [sg.Text('Grafana server',size=(20,1),font='Lucida',justification='left'),
+            sg.Text(grafanaText,size=(20,1),font=('Lucida',12,'bold'),text_color=grafanaColor,justification='left',key='grafanaText')],
+            [sg.Text('MySQL server',size=(20,1),font='Lucida',justification='left'),
+            sg.Text(mySQLText,size=(20,1),font=('Lucida',12,'bold'),text_color=mySQLColor,justification='left',key='mySQLText')],
             [sg.Text('Choose run type',size=(20, 1), font=('Lucida',12,'bold'),justification='left')],
             [sg.Combo(['Current scan','Efficiency scan','Noise scan', 'Stability scan', 'Resistivity measurement'],default_value='Current scan',font=('Lucida',12),key='scanType')],
             [sg.Text('Choose Mixture ',size=(30, 1), font=('Lucida',12,'bold'),justification='left')],
@@ -284,6 +320,28 @@ def main():
 
     while True:
         event, values = win.read()
+        win.refresh()
+
+        if values:
+            if get_pids_by_script_name('monitoring.py') == []:
+                win['envMonitText'].update('NOt OK',text_color='red')
+            else:
+                win['envMonitText'].update('OK',text_color='lime green')
+            
+            if get_pids_by_script_name('hvMonitor.py') == []:
+                win['hvMonitText'].update('NOT OK',text_color='red')
+            else:
+                win['hvMonitText'].update('OK',text_color='lime green')
+
+            if get_pids_by_script_name('gasKill.py') == []:
+                win['gasKillText'].update('NOT OK',text_color='red')
+            else:
+                win['gasKillText'].update('OK',text_color='lime green')
+           
+            if create_socket.connect_ex(destination) != 0:
+                win['grafanaText'].update('NOT OK',text_color='red')
+            else:
+                win['grafanaText'].update('OK',text_color='lime green')
 
         #Close program
         if event == "Abort scan" or event == sg.WIN_CLOSED:
@@ -319,6 +377,7 @@ def main():
             mydb.cmd_refresh(1)
             updatedMixtures = fetchGasMixtures(mydb,mycursor)
             win['mixture'].update(updatedMixtures)
+            win['deleteMixture'].update(disabled=True)
 
         #Delete scan data both locally and from db
         if event == 'deleteScan':
@@ -349,7 +408,7 @@ def main():
                 else: #res scan and Ar as the gas
                     os.system("python3 /home/pcald32/labStrada/DAQ/currentScan/hvScan.py " + str(values['mixture'][0][0] + " argonScan"))
             
-            break
+            #break
 
     win.close()
 

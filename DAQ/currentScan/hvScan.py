@@ -4,10 +4,10 @@ import numpy as np #numpy
 import ctypes #for C++ function binding (CAEN HV library for example)
 import pathlib #for library paths (to use C++ libraries in python)
 import mysql.connector #to connect to db to send the data
+import os  #To create new folders and so on
 import ROOT #Root CERN functions
 import time #For functions such as sleep
 import datetime #To get date, time and perform operations on them
-import os #To create new folders and so on
 import sys #To perform system operation
 
 debug = False
@@ -110,7 +110,7 @@ def main():
     totChannels = sum([len(i) for i in channels])
 
     #Get the configuration of the run from the config file
-    with open("/home/pcald32/labStrada/config/configExample.txt") as configFile:
+    with open("/home/pcald32/labStrada/config/configCurrScan.txt") as configFile:
         scanPoints = configFile.readlines()
         scanPoints.pop(0)
         
@@ -280,8 +280,8 @@ def main():
 
             hTemp.Fill(lastEnv[0][1]) #Fill temperature histo
             hPress.Fill(lastEnv[0][2]) #Fill pressure histo
-            hHumi.Fill(lastEnv[0][3]) #Fill humidity histo
-            #hFlow.Fill(lastEnv[0][4]) #Fill flow histo
+            #hHumi.Fill(lastEnv[0][3]) #Fill humidity histo -> commented because humidity reading from arduino gets easily corrupted
+            #hFlow.Fill(lastEnv[0][4]) #Fill flow histo -> commented because it is saved on Grafana already
            
             for slot in range(len(slots)):
                 for iCh, channel in enumerate(channels[slot]):
