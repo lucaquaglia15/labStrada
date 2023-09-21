@@ -387,7 +387,7 @@ def main():
         if event == "Start scan":
             if values['scanType'] == 'Current scan': #General current scan
                 print('You selected current scan')
-                os.system("python3 /home/pcald32/labStrada/DAQ/currentScan/hvScan.py " + str(values['mixture'][0][0] + " currentScan"))
+                os.system("python3 /home/pcald32/labStrada/DAQ/currentScan/hvScan.py " + str(values['mixture'][0] + " currentScan"))
 
             elif values['scanType'] == 'Efficiency scan': #efficiency scan (muon trigger)
                 print('You selected efficiency scan')
@@ -399,8 +399,9 @@ def main():
 
             elif values['scanType'] == 'Stability scan': #stability scan
                 print('You selected Stability scan')
+                #os.system("python3 /home/pcald32/labStrada/DAQ/stabilityScan/stabScan.py " + str(values['mixture'][0][0] + " stabilityScan"))
 
-            elif values['scanType'] == 'Resistivity measurement': #res scan
+            elif values['scanType'] == 'Resistivity measurement': #res scan + check if selected mixture != Ar
                 print('You selected resistivity measurement')
                 
                 if str(values['mixture'][0][0]) != 'argon': #res scan but not Ar as the gas

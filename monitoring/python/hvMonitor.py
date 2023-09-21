@@ -68,7 +68,7 @@ def main():
         hvModule.disconnect(handle)
 
         alive = alive+1
-        time.sleep(10)
+        time.sleep(30)
 
 if __name__ == "__main__":
     main()

@@ -54,7 +54,7 @@ class CAEN:
 				time.sleep(2)
 			else:
 				print("Max number of attempts reached (",MAX_ATTEMPTS,")")
-				print("Giving up, check CAEN Connection")
+				print("Giving up, check CAEN HV module connection")
 				sys.exit("Exiting current scan")
 		
 		#print("ret:",ret)	

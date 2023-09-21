@@ -60,7 +60,7 @@ def main():
 
     arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type)
     
-    while len(arguments) < 3: #Check if size of arguments is smaller than 3 (it means that some argument is missing by mistake)
+    while len(arguments) < 4: #Check if size of arguments is smaller than 3 (it means that some argument is missing by mistake)
         #add "" until size 3 is reached, some information on the run will be lost but it doesn't matter
         arguments.append("")
 
@@ -79,8 +79,8 @@ def main():
     newRun = lastRun[0][0] + 1 #new run = last run + 1
 
     #insert new run in db
-    run = [newRun,arguments[1],arguments[2]] #A list is needed due to how mysql query works
-    sendNewRun = "INSERT INTO efficiencyScan (runNumber,mixture,runType) VALUES (%s,%s,%s)"
+    run = [newRun,arguments[1],arguments[2],arguments[3]] #A list is needed due to how mysql query works
+    sendNewRun = "INSERT INTO efficiencyScan (runNumber,mixture,runType,comments) VALUES (%s,%s,%s,%s)"
     mycursor.execute(sendNewRun, run)
     mydb.commit()
 
@@ -88,20 +88,12 @@ def main():
     newPath = "/home/pcald32/runs/efficiencyScans/scan_"+str(newRun) 
     if not os.path.exists(newPath):
         os.makedirs(newPath)
-    #    os.chdir(newPath)
-    #    fOutDAQ = ROOT.TFile("test.root","RECREATE")
     
     #Define arrays to fill for tree branches
     size = array.array( 'l', [ 0 ] )
     aChannels = array.array('i')
     aTimes = array.array('f')
-
-    #Create TTree and branch it to save DAQ data
-    #treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
-    #treeDAQ.Branch('size', size, 'size/I')
-    #treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
-    #treeDAQ.Branch("times",aTimes,'times[size]/F')
-    
+ 
     print("Getting configuration file for V488A TDC")
     
     #Get values from constants.py
@@ -195,17 +187,6 @@ def main():
     for tdc in range(len(BA)):
         TDCs.append(TDC(BA[tdc],lowTh[tdc],highTh[tdc],window[tdc],enablech[tdc],IRQ[tdc]))
     
-    """
-    for tdc in range(len(BA)):
-        TDCs[tdc].resetModule(VMEbridge,handle)
-        TDCs[tdc].setLowThr(VMEbridge,handle)
-        TDCs[tdc].setHighThr(VMEbridge,handle)
-        TDCs[tdc].setTimeWindow(VMEbridge,handle)
-        TDCs[tdc].accessIRQregister(VMEbridge,handle,1)
-        TDCs[tdc].accessIRQregister(VMEbridge,handle,0)
-        TDCs[tdc].accessControlRegister(VMEbridge,handle,1)
-        TDCs[tdc].accessControlRegister(VMEbridge,handle,0)
-    """
     #print("\n Configuration done, starting scan \n")
     
     #VMEbridge.resetScalerCount(handle)
@@ -231,13 +212,26 @@ def main():
 
     #Begin for cycle on HV points
     for i in range(int(len(constants.measTime))):
+        #print("Test",trigNum[i])
 
         #Create TTree to save DAQ data
         treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
+        treeDAQ.Branch('trgNum',trigNum[i],'trigNum[i]/I')
+
+        t = array.array('i')
+        t.append(trigNum[i])
+        for x in t:
+            print(x)
+            
+        treeDAQ.SetBranchAddress('trgNum', t)
+        treeDAQ.Fill()
+
+
         treeDAQ.Branch('size', size, 'size/I')
         treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
         treeDAQ.Branch("times",aTimes,'times[size]/F')
 
+        
         print("starting pulser")
         VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
         VMEbridge.setOutputConf(handle,0,0,0,6)
@@ -354,9 +348,13 @@ def main():
         #Sleep for 2 seconds since, if channels are already on, it takes a bit of time to change status from ON to Ramp UP/DOWN
         time.sleep(2)
 
+        printedMessage = False #boolean to check if "channels are ramping" message has already been printed
         #Check if the channels are ramping
         while getStatus(hvModule,handle,totChannels,slots,channels) == True:
-            print("Channels are ramping")
+            if printedMessage == False: #Print message only once
+                printedMessage = True
+                print("Channels are ramping")
+            
             time.sleep(2)
 
         print("Ramping completed")
@@ -444,7 +442,7 @@ def main():
             if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
                 contaMille = contaMille+1
 
-            if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16):
+            if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16): #For noise scans with > 4096 triggers
             #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
                 print("Desidered trigger number reached, moving to the next HV point")
                 print("contaMille",contaMille)
@@ -552,7 +550,7 @@ def main():
                         print("\n\n scaler counts nel loop :", VMEbridge.readRegister(handle,0x1D),"\n\n")
                         print("contamille",contaMille)
 
-                        if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16):
+                        if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16): #For noise scans with > 4096 triggers
                         #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
                             print("Desidered trigger number reached, moving to the next HV point")
                             print("contaMille",contaMille)
