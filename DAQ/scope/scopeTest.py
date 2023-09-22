@@ -5,12 +5,12 @@ debug = False
 
 def main():
 
-    f = open("readme.txt", mode="wt") #open file to write out waveforms
+    f = open("waveTest.txt", mode="wt") #open file to write out waveforms
 
     scope = TeledyneLeCroyPy.LeCroyWaveRunner('VICP::90.147.203.158')
 
     if debug:
-        print(scope.idn) # Prings oscilloscope id
+        print(scope.idn) # Prints oscilloscope id
 
     scope.set_tdiv('50NS')
     scope.set_vdiv(1,0.1) #amplitude in volts channel 1
