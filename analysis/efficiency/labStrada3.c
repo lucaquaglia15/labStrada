@@ -33,6 +33,12 @@
 using namespace std;
 
 void labStrada3(){
+
+    TH1D *hTimeStrip[16];
+    for (int i = 0; i < 16; i++) {
+        hTimeStrip[i] =  new TH1D(("hTimeStrip_"+to_string(i)).c_str(),("hTimeStrip_"+to_string(i)).c_str(),100,0.,200.);
+    }
+
     vector <Int_t> channel[24];
     vector <Float_t> time[24];
     vector <double> channelX;
@@ -74,7 +80,7 @@ void labStrada3(){
     cout<<("scan_"+to_string(nrun)).c_str()<<endl;
     //int a+1=0;
     for(int a=0;a<1;a++){
-        int countEvX = 0;
+        int countEv = 0;
         int countTrg = 0;
         //int countEv = 0;
         //a+1=a+1+1;
@@ -108,6 +114,9 @@ void labStrada3(){
             tree->GetEvent(i);
             cout << "Evento " << i << " size " << size << endl;
             for(int k=0;k<size;k++){
+
+                hTimeStrip[channel[k]]->Fill(time[k]); //Fill time histogram per strip
+
                 if(channel[k]<=7){
                     histoTime1->Fill(time[k]);
                 }
@@ -150,10 +159,18 @@ void labStrada3(){
                     }
                 }
             
-            if(channelX.size()!=0 && channelY.size()!=0){
-                countEvX = countEvX+1;
+            /*if(channelX.size()!=0 && channelY.size()!=0){ //X AND Y
+                countEv = countEv+1;
+            }*/
+
+            if(channelX.size()!=0){ //X ONLY
+                countEv = countEv+1;
             }
-                        
+
+            /*if(channelY.size()!=0){ //Y ONLY
+                countEv = countEv+1;
+            }*/
+
             int cluster = 1;
             for(int j=1; j<channelX.size();j++){
                     if(channelX.at(j)==channelX.at(j-1)+1){
@@ -195,7 +212,7 @@ void labStrada3(){
         }
         
         
-        double eff = (countEvX/(double) 1000)*100;
+        double eff = (countEv/(double) 1000)*100;
         double errEff = TMath::Sqrt(eff*(100-eff)/1000);
 
         efficency.push_back(eff);
@@ -246,6 +263,25 @@ void labStrada3(){
     histoClusterX->Draw();
     TCanvas *ghistoClusterY = new TCanvas("histoClusterY");
     histoClusterY->Draw();
+
+    TCanvas *cTimeTDC1 = new TCanvas();
+    TCanvas *cTimeTDC2 = new TCanvas();
+
+    cTimeTDC1->cd();
+    cTimeTDC1->Divide(2,4);
+    cTimeTDC2->cd();
+    cTimeTDC2->Divide(2,4);
+
+    for (int i = 0; i < 8; i++) {
+        cTimeTDC1->cd(i+1);
+        hTimeStrip[i]->Draw("HISTO");
+    }
+
+    for (int i = 0; i < 8; i++) {
+        cTimeTDC2->cd(i+1);
+        hTimeStrip[i+8]->Draw("HISTO");
+    }
+    
 }
             
         
