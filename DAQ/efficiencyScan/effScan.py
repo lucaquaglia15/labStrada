@@ -1,4 +1,5 @@
 #import constants #constants
+from ast import arg
 from VME import VME #Python version of CAEN HV wrapper library
 from TDC import TDC #Functions specific to the V488A TDC module
 import numpy as np #numpy
@@ -14,6 +15,20 @@ import array
 import constants
 sys.path.insert(0, '/home/pcald32/labStrada/DAQ/currentScan') #import CAEN.py file from currentScan folder
 from CAEN import CAEN
+
+#Set final voltage to RPCs at the end of scan
+def switchOff(handle,hvModule,slots,channels,hvApp):
+    print("Setting end-of-run high voltage: ", hvApp)
+    
+    globalIndex = 0
+    
+    for slot in range(len(slots)):
+        for iCh, channel in enumerate(channels[slot]):
+            hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
+            if hvApp == 0: #If set hv = 0 -> swtich off the channel
+                hvModule.setParameter(handle,slots[slot],b"Pw",channel,0)
+
+            globalIndex = globalIndex+1
 
 #PT correction
 def ptCorr(temp, press, hvEff):
@@ -58,10 +73,10 @@ def main():
 
     print("---Efficiency scan starting---")
 
-    arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type)
+    arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type, #3 = comments, #4 = HV to set at the end of the scan)
     
-    while len(arguments) < 4: #Check if size of arguments is smaller than 3 (it means that some argument is missing by mistake)
-        #add "" until size 3 is reached, some information on the run will be lost but it doesn't matter
+    while len(arguments) < 5: #Check if size of arguments is smaller than 3 (it means that some argument is missing by mistake)
+        #add "" until size 5 is reached, some information on the run will be lost but it doesn't matter
         arguments.append("")
 
     mydb = mysql.connector.connect( #db object
@@ -172,32 +187,12 @@ def main():
 
     print("Connecting to CAEN HV module")
     hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
-
-    #start pulser for VETO
-    #print("starting pulser")
-    #VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
-    #VMEbridge.setOutputConf(handle,0,0,0,6)
-    #VMEbridge.startPulser(handle,0)
-
-    #configure TDCs
-    #print("\n configuring TDCs \n")
-    
+ 
     TDCs = [] #empty list to define one TDC object for every TDC used in the DAQ
     
     for tdc in range(len(BA)):
         TDCs.append(TDC(BA[tdc],lowTh[tdc],highTh[tdc],window[tdc],enablech[tdc],IRQ[tdc]))
     
-    #print("\n Configuration done, starting scan \n")
-    
-    #VMEbridge.resetScalerCount(handle)
-    
-    #print("\n Scaler counts:",VMEbridge.readRegister(handle,0x1D))
-
-    #VMEbridge.confScaler(handle,0,0,1,0,0)
-    #VMEbridge.enableScalerGate(handle)
-
-    #VMEbridge.enableIRQ(handle,111)
-
     #Connect to CAEN HV module
     handle = hvModule.connect()
     for slot in range(len(slots)):
@@ -216,17 +211,13 @@ def main():
 
         #Create TTree to save DAQ data
         treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
-        treeDAQ.Branch('trgNum',trigNum[i],'trigNum[i]/I')
-
-        t = array.array('i')
-        t.append(trigNum[i])
-        for x in t:
-            print(x)
-            
-        treeDAQ.SetBranchAddress('trgNum', t)
-        treeDAQ.Fill()
-
-
+        #treeDAQ.Branch('trgNum',trigNum[i],'trigNum[i]/I')
+        #t = array.array('i')
+        #t.append(trigNum[i])
+        #for x in t:
+        #    print(x)
+        #treeDAQ.SetBranchAddress('trgNum', t)
+        #treeDAQ.Fill()
         treeDAQ.Branch('size', size, 'size/I')
         treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
         treeDAQ.Branch("times",aTimes,'times[size]/F')
@@ -610,6 +601,15 @@ def main():
 
     print("\n\n --- Efficiency scan is over --- \n\n")
 
+    #Set desired voltage on the RPC at the end of the scan
+    if arguments[4] == "": #HV to set after the scan was NOT provided by the -> Set 0 V and switch off the channels
+        switchOff(handle,hvModule,slots,channels,0)
+    
+    else: #HV to set after the scan was provided by the user -> apply the set voltagete
+        switchOff(handle,hvModule,slots,channels,float(arguments[4]))
+
+    hvModule.disconnect(handle)
+    print("Disconnected from HV module")
 
 if __name__ == "__main__":
     main()
