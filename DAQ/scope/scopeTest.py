@@ -7,26 +7,29 @@ def main():
 
     f = open("waveTest.txt", mode="wt") #open file to write out waveforms
 
-    scope = TeledyneLeCroyPy.LeCroyWaveRunner('VICP::90.147.203.158')
+    scope = TeledyneLeCroyPy.LeCroyWaveRunner('VICP::90.147.203.158') #Connect to scoper via TCP/IP
 
     if debug:
         print(scope.idn) # Prints oscilloscope id
 
-    scope.set_tdiv('50NS')
-    scope.set_vdiv(1,0.1) #amplitude in volts channel 1
-    scope.set_vdiv(2,0.1) #amplitude in volts channel 2
+    scope.set_tdiv('20NS') #Set time base division of the scope
+    scope.set_vdiv(1,0.2) #amplitude in volts channel 1
+    scope.set_vdiv(2,0.2) #amplitude in volts channel 2
+    scope.set_vdiv(3,0.2) #amplitude in volts channel 3
 
-    activeChannels = [1,2]
+    activeChannels = [1] #list of the channels which we want to record -> max is [1,2,3,4]
 
-    for i in range(2): #Loop on # of triggers
+    trigNum = 2 #number of triggers we want to record
+
+    for i in range(trigNum): #Loop on # of triggers
         
-        f.write("trigger # " + str(i) + "\n") #Header in text file
+        f.write("trigger #" + str(i) + " channels:" + str(len(activeChannels)) + "\n") #Header in text file
 
-        print('Waiting for trigger...')
+        print('Waiting for trigger...') 
 
         scope.wait_for_single_trigger() # Halt the execution until there is a trigger
 
-        data = {} #data from multiple channels
+        data = {} #To store data from multiple channels
 
         globalOut = []
         temp = []
@@ -44,6 +47,7 @@ def main():
             
             globalOut.append(temp) #append the i-th sample to the gloabl output vector, which is organized in this way:
             temp = [] #Clear the i-th sample
+            
             #trigger #1
             #Time sample 1  \t  Ch1 sample 1  \t  Ch2 sample 1  \t  Ch3 sample 1  \t  Ch4 sample 1  \n
             #....           \t  ....          \t  ....          \t  ....          \t  ....          \n 
