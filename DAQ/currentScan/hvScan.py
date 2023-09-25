@@ -21,6 +21,20 @@ def error(severity):
     elif severity == 2:
         print("\nThis is a serious error\n")    
 
+#Set final voltage to RPCs at the end of scan
+def switchOff(handle,hvModule,slots,channels,hvApp):
+    print("Setting end-of-run high voltage: ", hvApp)
+    
+    globalIndex = 0
+    
+    for slot in range(len(slots)):
+        for iCh, channel in enumerate(channels[slot]):
+            hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
+            if hvApp == 0: #If set hv = 0 -> swtich off the channel
+                hvModule.setParameter(handle,slots[slot],b"Pw",channel,0)
+
+            globalIndex = globalIndex+1
+
 #PT correction
 def ptCorr(temp, press, hvEff):
   hvApp = hvEff*(constants.T0/temp)*(press/constants.p0)
@@ -63,8 +77,8 @@ def main():
 
     arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type)
     
-    while len(arguments) < 3: #Check if size of arguments is smaller than 3 (it means that some argument is missing by mistake)
-        #add "" until size 3 is reached, some information on the run will be lost but it doesn't matter
+    while len(arguments) < 5: #Check if size of arguments is smaller than 3 (it means that some argument is missing by mistake)
+        #add "" until size 5 is reached, some information on the run will be lost but it doesn't matter
         arguments.append("")
 
     mydb = mysql.connector.connect( #db object
@@ -85,7 +99,7 @@ def main():
 
     #insert new run in db
     run = [newRun,arguments[1],arguments[2]] #A list is needed due to how mysql query works
-    sendNewRun = "INSERT INTO currentScan (runNumber,mixture,runType) VALUES (%s,%s,%s)"
+    sendNewRun = "INSERT INTO currentScan (runNumber,mixture,runType,comments) VALUES (%s,%s,%s,%s)"
     mycursor.execute(sendNewRun, run)
     mydb.commit()
 
@@ -332,6 +346,8 @@ def main():
         #Reset names and increase HV point counter
         dipOut = "scan_"+str(newRun)+"_DIP_"
         caenOut = "scan_"+str(newRun)+"_CAEN_"
+
+    print("\n\n --- Efficiency scan is over --- \n\n")
       
     print("HV scan ended, switching off detectors")
     for slot in range(len(slots)):
