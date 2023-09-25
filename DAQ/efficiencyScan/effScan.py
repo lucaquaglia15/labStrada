@@ -422,15 +422,24 @@ def main():
 
                 VMEbridge.stopPulser(handle,0)
 
+            #1000 triggers in the VME scaler -> increase contaMille
             if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
-                contaMille = contaMille+1
+                #print("\n Increasing contaMille:\n")
+                #print("Counts before: ", VMEbridge.readRegister(handle,0x1D))
+                contaMille = contaMille+1000
+                #print("Resetting scaler counter")
+                VMEbridge.resetScalerCount(handle)
+                #print("Counts after: ", VMEbridge.readRegister(handle,0x1D))
 
-            if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[i]),16): #For noise scans with > 4096 triggers
+            if (contaMille + VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[i]),16): #For noise scans with > 4096 triggers
+            #if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[i]),16): #For noise scans with > 4096 triggers
             #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[i]),16):
                 print("Desidered trigger number reached, moving to the next HV point, case 1")
                 print("contaMille, case 1: ",contaMille)
                 print("Numero di trigger impostati, case 1: ",int(hex(trigNum[i]),16))
-                print("Numero di trigger calcolati, case 1: ",int(VMEbridge.readRegister(handle,0x1D)))
+                #print("Numero di trigger calcolati, case 1: ",int(VMEbridge.readRegister(handle,0x1D)))
+                print("Numero di trigger calcolati, case 1: ",contaMille + int(VMEbridge.readRegister(handle,0x1D)))
+                print("Raw read: ", VMEbridge.readRegister(handle,0x1D))
                 
                 os.chdir(scanFol)
 
