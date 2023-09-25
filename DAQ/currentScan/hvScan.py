@@ -348,13 +348,14 @@ def main():
         caenOut = "scan_"+str(newRun)+"_CAEN_"
 
     print("\n\n --- Efficiency scan is over --- \n\n")
-      
-    print("HV scan ended, switching off detectors")
-    for slot in range(len(slots)):
-        for channel in channels[slot]:
-            hvModule.setParameter(handle,slots[slot],b"V0Set",channel,0)
-            hvModule.setParameter(handle,slots[slot],b"Pw",channel,0)
 
+    #Set desired voltage on the RPC at the end of the scan
+    if arguments[4] == "": #HV to set after the scan was NOT provided by the -> Set 0 V and switch off the channels
+        switchOff(handle,hvModule,slots,channels,0)
+    
+    else: #HV to set after the scan was provided by the user -> apply the set voltagete
+        switchOff(handle,hvModule,slots,channels,float(arguments[4]))
+    
     hvModule.disconnect(handle)
     print("Disconnected from HV module")
     

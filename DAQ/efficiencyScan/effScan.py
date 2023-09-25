@@ -207,17 +207,10 @@ def main():
 
     #Begin for cycle on HV points
     for i in range(int(len(constants.measTime))):
-        #print("Test",trigNum[i])
+        print("Number of triggers: ",trigNum[i])
 
         #Create TTree to save DAQ data
         treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
-        #treeDAQ.Branch('trgNum',trigNum[i],'trigNum[i]/I')
-        #t = array.array('i')
-        #t.append(trigNum[i])
-        #for x in t:
-        #    print(x)
-        #treeDAQ.SetBranchAddress('trgNum', t)
-        #treeDAQ.Fill()
         treeDAQ.Branch('size', size, 'size/I')
         treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
         treeDAQ.Branch("times",aTimes,'times[size]/F')
@@ -373,10 +366,10 @@ def main():
     
         while waitingIRQ:
 
+            #PT correction
             if time.perf_counter() - start > 30: #more than 30 seconds since last measurement
                 VMEbridge.startPulser(handle,0)
                 start = time.perf_counter() #Update last time of correction
-                #PT correction
                 mydb.cmd_refresh(1) #refresh db to get last entry
             
                 globalIndex = 0
@@ -401,7 +394,6 @@ def main():
 
                 temperature = lastEnv[0][1]+273.15
                 pressure = lastEnv[0][2]
-                #print("temperature",temperature,"pressure",pressure)
 
                 hTemp.Fill(lastEnv[0][1]) #Fill temperature histo
                 hPress.Fill(lastEnv[0][2]) #Fill pressure histo
@@ -433,12 +425,12 @@ def main():
             if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
                 contaMille = contaMille+1
 
-            if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16): #For noise scans with > 4096 triggers
-            #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
-                print("Desidered trigger number reached, moving to the next HV point")
-                print("contaMille",contaMille)
-                print("Numero di trigger impostati: ",int(hex(trigNum[0]),16))
-                print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
+            if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[i]),16): #For noise scans with > 4096 triggers
+            #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[i]),16):
+                print("Desidered trigger number reached, moving to the next HV point, case 1")
+                print("contaMille, case 1: ",contaMille)
+                print("Numero di trigger impostati, case 1: ",int(hex(trigNum[i]),16))
+                print("Numero di trigger calcolati, case 1: ",int(VMEbridge.readRegister(handle,0x1D)))
                 
                 os.chdir(scanFol)
 
@@ -541,12 +533,12 @@ def main():
                         print("\n\n scaler counts nel loop :", VMEbridge.readRegister(handle,0x1D),"\n\n")
                         print("contamille",contaMille)
 
-                        if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[0]),16): #For noise scans with > 4096 triggers
-                        #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[0]),16):
-                            print("Desidered trigger number reached, moving to the next HV point")
-                            print("contaMille",contaMille)
-                            print("Numero di trigger impostati: ",int(hex(trigNum[0]),16))
-                            print("Numero di trigger calcolati: ",int(VMEbridge.readRegister(handle,0x1D)))
+                        if contaMille*(VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[i]),16): #For noise scans with > 4096 triggers
+                        #if VMEbridge.readRegister(handle,0x1D)>=int(hex(trigNum[i]),16):
+                            print("Desidered trigger number reached, moving to the next HV point, case 2")
+                            print("contaMille, case 2: ",contaMille)
+                            print("Numero di trigger impostati, case 2: ",int(hex(trigNum[i]),16))
+                            print("Numero di trigger calcolati, case 2: ",int(VMEbridge.readRegister(handle,0x1D)))
                             os.chdir(scanFol)
 
                             #fOutDIP = ROOT.TFile(dipOut,"RECREATE")
