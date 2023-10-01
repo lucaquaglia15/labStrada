@@ -30,6 +30,7 @@
 #include <TString.h>
 #include <algorithm>
 #include <unordered_set>
+#include "fstream"
 
 using namespace std;
 using namespace TMath;
@@ -39,14 +40,56 @@ TF1 *fitGausTDC1 = new TF1("fitGausTDC1","gaus(0)",0.,200.);
 TF1 *fitGausTDC2 = new TF1("fitGausTDC2","gaus(0)",0.,160.);
 TF1 *fitGausTDC3 = new TF1("fitGausTDC3","gaus(0)",0.,200.);
 
-void labStrada3(){
+//os.system("root -l -q .x 'current.C(221)'")
 
-    TH1D *hTimeStrip[16];
-    //for (int i = 0; i < 16; i++) {
-    //    hTimeStrip[i] =  new TH1D(("hTimeStrip_"+to_string(i)).c_str(),("hTimeStrip_"+to_string(i)).c_str(),100,0.,200.);
-    //}
+void noise(const string mapping){
 
-    for (int i = 0; i < 16; i++) {
+    //Open strip mapping
+    ifstream hMap(mapping.c_str());
+
+    int s = 0, c = 0;
+
+    while (hMap >> s >> c) {
+        cout << s << "\t" << c << endl;
+    }
+
+    /*int chX, strpX, muteX;
+	int chY, strpY, muteY;
+	vector <int> tdc_chX, rpc_strpX;
+	vector <int> tdc_chY, rpc_strpY;
+
+	while (mappingX >> muteX >> chX >> strpX) {
+
+		if (muteX == 1) {
+			tdc_chX.push_back(chX);
+			rpc_strpX.push_back(strpX);
+		}
+
+		else continue;
+	}
+
+	while (mappingY >> muteY >> chY >> strpY) {
+
+		if (muteY == 1) {
+			tdc_chY.push_back(chY);
+			rpc_strpY.push_back(strpY);
+		}
+
+		else continue;
+	}
+
+	int instripX = tdc_chX.front();
+	int instripY = tdc_chY.front();
+	int finstripX = tdc_chX.back();
+	int finstripY = tdc_chY.back();*/
+
+    int numTrigger = 100000; //number of random triggers
+    float triggerDuration = 770; //ns
+
+    bool debug = false;
+
+    TH1D *hTimeStrip[24];
+    for (int i = 0; i < 24; i++) {
         hTimeStrip[i] =  new TH1D(("hTimeStrip_"+to_string(i)).c_str(),("hTimeStrip_"+to_string(i)).c_str(),770,0.,770.);
     }
 
@@ -64,11 +107,7 @@ void labStrada3(){
     vector <int> channelXord;
     //creo un istogramma 2D
     TH2I *histo2D = new TH2I("histo2D","X OR Y",8,0,8,8,0,8);
-    TH2I *histo2Dcut = new TH2I("histo2Dcut","X OR Y cut",8,0,8,8,0,8);
     //creo istogrammi per i 3 TDC
-    //TH1D *histoTime1 = new TH1D("histoTime1","time distribution TDC 1;Time;Counts",100,0.,190.);
-    //TH1D *histoTime2 = new TH1D("histoTime2","time distribution TDC 2;Time;Counts",100,0.,180.);
-    //TH1D *histoTime3 = new TH1D("histoTime3","time distribution TDC 3;Time;Counts",100,0.,210.);
     TH1D *histoTime1 = new TH1D("histoTime1","time distribution TDC 1;Time;Counts",770,0.,770.);
     TH1D *histoTime2 = new TH1D("histoTime2","time distribution TDC 2;Time;Counts",770,0.,770.);
     TH1D *histoTime3 = new TH1D("histoTime3","time distribution TDC 3;Time;Counts",770,0.,770.);
@@ -79,7 +118,6 @@ void labStrada3(){
     TH1D *histoMuonX = new TH1D("histoMuonX","histoMuonX",8,0.,8.);
     TH1D *histoMuonY = new TH1D("histoMuonY","histoMuonY",8,0.,8.);
 
-
     //vado nella cartella in cui è contenuto lo scan di efficienza
     gSystem->cd("/home/pcald32/runs/efficiencyScans/");
     //numero del run
@@ -89,7 +127,7 @@ void labStrada3(){
     gSystem->cd(("scan_"+to_string(nrun)).c_str());
     cout<<("scan_"+to_string(nrun)).c_str()<<endl;
     //int a+1=0;
-    for(int a=0;a<10;a++){
+    for(int a=0;a<1;a++){
         int countEv = 0;
         int countTrg = 0;
         int xCounter = 0, yCounter = 0, xyCounter = 0;
@@ -109,6 +147,8 @@ void labStrada3(){
         TH1F *HVeff = (TH1F*)scanCAEN->Get(("ECOgas_HV_eff_"+to_string(a+1)).c_str());
         hveff.push_back(HVeff->GetMean());
 
+        float hitTime[24]; //Time of the hits per strip
+
         //loop sugli ingressi del tree
         for(int i=0;i<tree->GetEntries();i++){
             int size = 0;
@@ -123,10 +163,21 @@ void labStrada3(){
             tree->SetBranchAddress("channels",&channel[0]);
             tree->SetBranchAddress("times",&time[0]);
             tree->GetEvent(i);
+            
+            if (debug)
             cout << "Evento " << i << " size " << size << endl;
+            
             for(int k=0;k<size;k++){
-
+                
+                //cout << channel[k] << "\t" << time[k] << endl;
                 hTimeStrip[channel[k]]->Fill(time[k]); //Fill time histogram per strip
+
+                if (channel[k] == 4) {
+                    cout << time[k] << " ns" << endl;
+                    //hitTime[channel[k]] += time[k];
+                }
+
+                hitTime[channel[k]] += time[k];
 
                 if(channel[k]<=7){
                     histoTime1->Fill(time[k]);
@@ -144,14 +195,16 @@ void labStrada3(){
                     vector <double> stripsX(8,channel[l]);
                     channelX.push_back(channel[l]);
                     timeX.push_back(time[l]);
-                    cout<<"\nLe strip x sono:"<<channel[l] << endl;
+                    if (debug)
+                        cout<<"\nLe strip x sono:"<<channel[l] << endl;
                     histoProjectionX->Fill(channel[l]);
                     stripsX.clear();
                 }else if(channel[l]>7){
                     vector <double> stripsY(8,channel[l]);
                     channelY.push_back(channel[l]);
                     timeY.push_back(time[l]);
-                    cout<<"Le strip y sono:"<<channel[l]<< endl;
+                    if (debug)
+                        cout<<"Le strip y sono:"<<channel[l]<< endl;
                     histoProjectionY->Fill(channel[l]-8);
                     stripsY.clear();
                 }
@@ -162,7 +215,8 @@ void labStrada3(){
 
                 if(channelX.size()!=0 && channelY.size()!=0){
                     countTrg = countTrg+1;
-                    cout<<"\nHo registrato "<<countTrg<<"trigger\n"<<endl;
+                    if (debug)
+                        cout<<"\nHo registrato "<<countTrg<<"trigger\n"<<endl;
                     for(int y=0;y<channelY.size();y++){
                         for(int x=0;x<channelX.size();x++){
                             histo2D->Fill(channelX.at(x),channelY.at(y)-8);
@@ -170,18 +224,6 @@ void labStrada3(){
                     }
                 }
             
-            if(channelX.size()!=0 && channelY.size()!=0){ //X AND Y
-                countEv = countEv+1;
-            }
-
-            /*if(channelX.size()!=0){ //X ONLY
-                countEv = countEv+1;
-            }*/
-
-            /*if(channelY.size()!=0){ //Y ONLY
-                countEv = countEv+1;
-            }*/
-
             int cluster = 1;
             for(int j=1; j<channelX.size();j++){
                     if(channelX.at(j)==channelX.at(j-1)+1){
@@ -195,7 +237,8 @@ void labStrada3(){
             clustersX.push_back(cluster);
             cluster=1;
             
-            cout<<"Evento "<<i<<" "<<"Cluster size delle x: "<<clustersX.at(i)<<endl;
+            if (debug)
+                cout<<"Evento "<<i<<" "<<"Cluster size delle x: "<<clustersX.at(i)<<endl;
             
             for(int j=1; j<channelY.size();j++){
                     if(channelY.at(j)==channelY.at(j-1)+1){
@@ -223,15 +266,9 @@ void labStrada3(){
         }
         
         
-        double eff = (countEv/(double) 150)*100;
-        double errEff = TMath::Sqrt(eff*(100-eff)/150);
-
-        efficency.push_back(eff);
-        errEfficiency.push_back(errEff);
-        //cout<<"\nHo registrato "<<countEv<<"eventi totali\n"<<endl;
-        cout<<"Efficienza calcolata: "<<eff<<endl;
-        cout<<"\nHo registrato "<<countTrg<<"trigger\n"<<endl;
-        
+        double eff = (countEv/(double) 1500)*100;
+        double errEff = TMath::Sqrt(eff*(100-eff)/1500);
+ 
         TCanvas *ghPY = new TCanvas("histo proiezione Y");
         histoProjectionY->Draw();
         TCanvas *ghPX = new TCanvas("histo proiezione X");
@@ -245,137 +282,38 @@ void labStrada3(){
         histo2D->GetYaxis()->SetTitle("StripY");
         histo2D->Draw("COLZ");
 
-        int maxCountsTDC1 = histoTime1->GetMaximum();
-        int maxCountsTDC2 = histoTime2->GetMaximum();
-        int maxCountsTDC3 = histoTime3->GetMaximum();
+        cout << histoProjectionX->GetBinContent(1) << endl;
+        //cout << "Rate strip 0: " << histoProjectionX->GetBinContent(1)/((numTrigger*triggerDuration - hitTime[0])*1e-9*(2.5*50)) << " Hz/cm^2" << endl;
         
-        double meanTDC1 = histoTime1->GetXaxis()->GetBinCenter(histoTime1->GetMaximumBin());
-        double meanTDC2 = histoTime2->GetXaxis()->GetBinCenter(histoTime2->GetMaximumBin());
-        double meanTDC3 = histoTime3->GetXaxis()->GetBinCenter(histoTime3->GetMaximumBin());
+        for (int j = 0; j < 24; j++) {
+            if (j >= 0 && j <= 7) {
+                cout << hitTime[j] << endl;
+                cout << "Rate strip " << to_string(j) << ": " << histoProjectionX->GetBinContent(j+1)/((numTrigger*triggerDuration - hitTime[j])*1e-9*(2.1*50)) << " Hz/cm^2" << endl;
+            }
+            else if (j >= 8 && j <= 15) {
+                cout << hitTime[j] << endl;
+                cout << "Rate strip " << to_string(j-8) << ": " << histoProjectionY->GetBinContent(j-8+1)/((numTrigger*triggerDuration - hitTime[j])*1e-9*(2.1*50)) << " Hz/cm^2" << endl;
+            }
+        }
 
-        fitGausTDC1->SetParLimits(0,maxCountsTDC1-0.1*maxCountsTDC1,maxCountsTDC1+0.1*maxCountsTDC1);
-        fitGausTDC2->SetParLimits(0,maxCountsTDC2-0.1*maxCountsTDC2,maxCountsTDC2+0.1*maxCountsTDC2);
-        fitGausTDC3->SetParLimits(0,maxCountsTDC3-0.1*maxCountsTDC3,maxCountsTDC3+0.1*maxCountsTDC3);
-        
-        fitGausTDC1->SetParLimits(1,meanTDC1-0.1*meanTDC1,meanTDC1+0.1*meanTDC1);
-        //fitGausTDC2->SetParLimits(1,meanTDC2-0.1*meanTDC2,meanTDC2+0.05*meanTDC2);
-        fitGausTDC2->SetParameter(1,meanTDC2);
-        fitGausTDC3->SetParLimits(1,meanTDC3-0.1*meanTDC3,meanTDC3+0.1*meanTDC3);
-       
-        fitGausTDC1->SetParLimits(2,0,10);
-        fitGausTDC2->SetParLimits(2,0,5);
-        fitGausTDC3->SetParLimits(2,0,10);
-        
         TCanvas *gTDC1 = new TCanvas("histoTempi TDC1");
-        histoTime1->Fit("fitGausTDC1", "M+");
-        histoTime1->Draw();
-        double minMuon1 = fitGausTDC1->GetParameter(1) - 3*fitGausTDC1->GetParameter(2);
-        double maxMuon1 = fitGausTDC1->GetParameter(1) + 3*fitGausTDC1->GetParameter(2);
-        
+        histoTime1->Draw();        
         TCanvas *gTDC2 = new TCanvas("histoTempi TDC2");
-        histoTime2->GetXaxis()->SetRangeUser(120,160);
-        histoTime2->Fit("fitGausTDC2", "M+");
-        histoTime2->GetXaxis()->SetRangeUser(0,200);
         histoTime2->Draw();
-
-        double minMuon2 = fitGausTDC2->GetParameter(1) - 3*fitGausTDC2->GetParameter(2);
-        //double maxMuon2 = fitGausTDC2->GetParameter(1) + 3*fitGausTDC2->GetParameter(2);
-        double maxMuon2 = 160;
-
-        cout << "Min muon1 " << minMuon1 << " max muon 1 " << maxMuon1 << endl;
-        cout << "Min muon2 " << minMuon2 << " max muon 2 " << maxMuon2 << endl;
-
         TCanvas *gTDC3 = new TCanvas("histoTempi TDC3");
         histoTime3->Draw();
 
-        vector<int> channelXcut, channelYcut;
-
-        for(int i=0;i<tree->GetEntries();i++){
-            int size = 0;
-            //countEv=countEv+1;
-            tree->SetBranchAddress("size",&size);
-            tree->GetEvent(i);
-            int channel[24]={0};
-            float time[24]={0};
-            int chXnew[30]={0};
-            int chYnew[30]={0};
-            int channelMinY[8]={0};
-            tree->SetBranchAddress("channels",&channel[0]);
-            tree->SetBranchAddress("times",&time[0]);
-            tree->GetEvent(i);
-            cout << "Evento " << i << " size " << size << endl;
-            bool x = false, y = false; //true se c'è hit sulle x o y
-            for(int k=0;k<size;k++){
-                if (channel[k] >= 0 && channel[k] <= 7) { //TDC1
-                    if (time[k] >= minMuon1 && time[k] <= maxMuon1) { //siamo nella muon window del TDC1
-                        x = true;
-                        histoMuonX->Fill(channel[k]);
-                        channelXcut.push_back(channel[k]);
-                    }
-                }
-
-                else if (channel[k] >= 8 && channel[k] <= 15) { //TDC2
-                    if (time[k] >= minMuon2 && time[k] <= maxMuon2) { //siamo nella muon window del TDC2
-                        y = true;
-                        histoMuonY->Fill(channel[k]-8);
-                        channelYcut.push_back(channel[k]-8);
-                    }
-                }
-                
-            }
-
-            if(channelXcut.size()!=0 && channelYcut.size()!=0){
-                for(int y=0;y<channelYcut.size();y++){
-                    for(int x=0;x<channelXcut.size();x++){
-                        histo2Dcut->Fill(channelXcut.at(x),channelYcut.at(y));
-                    }
-                }
-            }
-            channelXcut.clear();
-            channelYcut.clear();
-
-            if (x == true) {
-                xCounter++;
-            }
-
-            if (y == true) {
-                yCounter++;
-            }
-
-            if (x == true && y == true) {
-                xyCounter++;
-            }
-            
-            channelX.clear();
-            channelY.clear();
-            timeX.clear();
-            timeY.clear();
-        }
-        
         gSystem->cd("..");
-        
-        cout << "x counter " << xCounter << " y counter " << yCounter << " x and y counter " << xyCounter << endl;
 
         
 
+        
     } //fine ciclo for sui punti di HV
 
-    for(int i=0;i<efficency.size();i++){
-        cout<<efficency.at(i)<<endl;
-    }
     for(int j=0;j<hveff.size();j++){
         cout<<hveff.at(j)<<endl;
     }
-    TGraphErrors *gr1 = new TGraphErrors(hveff.size(),&hveff[0],&efficency[0],NULL,&errEfficiency[0]);
-    gr1->SetMarkerStyle(20);
-    gr1->SetMarkerColor(2);
-    gr1->SetMarkerSize(1);
-    gr1->SetName("effScan");
-    gr1->SetTitle ("Efficiency Scan");
-    gr1->GetYaxis()->SetTitle("Efficiency");
-    gr1->GetXaxis()->SetTitle("HV (V)");
-    //new TCanvas();
-    gr1->Draw("AP");
+ 
     TCanvas *ghistoClusterX = new TCanvas("histoClusterX");
     histoClusterX->Draw();
     TCanvas *ghistoClusterY = new TCanvas("histoClusterY");
@@ -383,11 +321,14 @@ void labStrada3(){
 
     TCanvas *cTimeTDC1 = new TCanvas();
     TCanvas *cTimeTDC2 = new TCanvas();
+    TCanvas *cTimeTDC3 = new TCanvas();
 
     cTimeTDC1->cd();
     cTimeTDC1->Divide(2,4);
     cTimeTDC2->cd();
     cTimeTDC2->Divide(2,4);
+    cTimeTDC3->cd();
+    cTimeTDC3->Divide(2,4);
 
     for (int i = 0; i < 8; i++) {
         cTimeTDC1->cd(i+1);
@@ -399,15 +340,12 @@ void labStrada3(){
         hTimeStrip[i+8]->Draw("HISTO");
     }
 
-    TCanvas *c1 = new TCanvas();
-        c1->cd();
-        histoMuonX->Draw("HISTO");
-    TCanvas *c2 = new TCanvas();
-        c2->cd();
-        histoMuonY->Draw("HISTO");
+    for (int i = 0; i < 8; i++) {
+        cTimeTDC2->cd(i+1);
+        hTimeStrip[i+16]->Draw("HISTO");
+    }  
 
-    TCanvas *c2dCuts = new TCanvas();
-        c2dCuts->cd();
-        histo2Dcut->Draw("COLZ");
-    
+    /*for (int i = 0; i < 24; i++) {
+
+    }*/
 }    
