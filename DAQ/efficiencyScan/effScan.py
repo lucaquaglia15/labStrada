@@ -1,5 +1,6 @@
 #import constants #constants
 from ast import arg
+from typing import NewType
 from VME import VME #Python version of CAEN HV wrapper library
 from TDC import TDC #Functions specific to the V488A TDC module
 import numpy as np #numpy
@@ -8,7 +9,7 @@ import pathlib #for library paths (to use C++ libraries in python)
 import mysql.connector #to connect to db to send the data
 import ROOT #Root CERN functions
 import time #For functions such as sleep
-import datetime #To get date, time and perform operations on them
+from datetime import datetime #To get date, time and perform operations on them
 import os #To create new folders and so on
 import sys #To perform system operation
 import array
@@ -606,6 +607,13 @@ def main():
 
     hvModule.disconnect(handle)
     print("Disconnected from HV module")
+
+    #Insert date and time of the end of the scan in the db
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    endTimeRun = [now,newRun]
+    sendEndTime = "UPDATE efficiencyScan SET endDate = (%s) WHERE runNumber = (%s)"
+    mycursor.execute(sendEndTime, endTimeRun)
+    mydb.commit()
 
 if __name__ == "__main__":
     main()

@@ -7,7 +7,7 @@ import mysql.connector #to connect to db to send the data
 import os  #To create new folders and so on
 import ROOT #Root CERN functions
 import time #For functions such as sleep
-import datetime #To get date, time and perform operations on them
+from datetime import datetime #To get date, time and perform operations on them
 import sys #To perform system operation
 
 debug = False
@@ -98,13 +98,10 @@ def main():
     newRun = lastRun[0][0] + 1 #new run = last run + 1
 
     #insert new run in db
-    run = [newRun,arguments[1],arguments[2]] #A list is needed due to how mysql query works
+    run = [newRun,arguments[1],arguments[2],arguments[3]] #A list is needed due to how mysql query works
     sendNewRun = "INSERT INTO currentScan (runNumber,mixture,runType,comments) VALUES (%s,%s,%s,%s)"
     mycursor.execute(sendNewRun, run)
     mydb.commit()
-
-    #runConfig = [totChannels,]
-    #sendRunConfig = "INSERT INTO .. VALUES (%s)"
 
     #Create folder to save the data locally
     newPath = "/home/pcald32/runs/currentScans/scan_"+str(newRun) 
@@ -358,6 +355,13 @@ def main():
     
     hvModule.disconnect(handle)
     print("Disconnected from HV module")
+
+    #Insert date and time of the end of the scan in the db
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    endTimeRun = [now,newRun]
+    sendEndTime = "UPDATE currentScan SET endDate = (%s) WHERE runNumber = (%s)"
+    mycursor.execute(sendEndTime, endTimeRun)
+    mydb.commit()
     
 if __name__ == "__main__":
     main()
