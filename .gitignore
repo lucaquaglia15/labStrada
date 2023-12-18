@@ -2,3 +2,5 @@
 gasKill.py
 *.html
 *.pyc
+*.png
+*.pdf
