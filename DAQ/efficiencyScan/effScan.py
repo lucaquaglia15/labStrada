@@ -301,13 +301,13 @@ def main():
         mydb.cmd_refresh(1)
         lastEnv = getPT(mycursor)
         lastDate = lastEnv[0][0]
-        delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
+        delta = (datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
         while delta > 1200: #1200 s = logger stopped for more than 20 minutes
             mydb.cmd_refresh(1)
             lastEnv = getPT(mycursor)
             lastDate = lastEnv[0][0]
-            delta = (datetime.datetime.now() - lastDate).total_seconds()
+            delta = (datetime.now() - lastDate).total_seconds()
             print("PT logging stopped more than 10 minutes ago!")
             print("Last PT saved is at:",str(lastDate))
             print("Pausing current scan until PT logging resumes")  
@@ -377,7 +377,7 @@ def main():
             
                 lastEnv = getPT(mycursor)
                 lastDate = lastEnv[0][0]
-                delta = (datetime.datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
+                delta = (datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
 
                 while delta > 1200:
                     t_end = t_end + 3 #this is needed because the way to measure residual time is to compute t_end before the start of measuring time
@@ -387,7 +387,7 @@ def main():
                     mydb.cmd_refresh(1)
                     lastEnv = getPT(mycursor)
                     lastDate = lastEnv[0][0]
-                    delta = (datetime.datetime.now() - lastDate).total_seconds()
+                    delta = (datetime.now() - lastDate).total_seconds()
                     print("PT logging stopped more than 10 minutes ago!")
                     print("Last PT saved is at:",str(lastDate))
                     print("Pausing current scan until PT resumes")  

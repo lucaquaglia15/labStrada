@@ -13,9 +13,12 @@ def main():
         print(scope.idn) # Prints oscilloscope id
 
     scope.set_tdiv('20NS') #Set time base division of the scope
-    scope.set_vdiv(1,0.2) #amplitude in volts channel 1
+    scope.set_vdiv(1,0.002) #amplitude in volts channel 1
     scope.set_vdiv(2,0.2) #amplitude in volts channel 2
     scope.set_vdiv(3,0.2) #amplitude in volts channel 3
+    #scope.set_trig_mode('AUTO')
+    #0.055 = 55 mV
+    scope.set_trig_level("C1",0.005)
 
     activeChannels = [1] #list of the channels which we want to record -> max is [1,2,3,4]
 

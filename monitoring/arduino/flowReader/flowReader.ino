@@ -61,13 +61,16 @@ void setup() {
 }
 
 void loop() {
-  int value = analogRead(A0);  // Output value from the flow sensor (ADC counts)
+  int valueIn = analogRead(A0);  // Output value from the flow sensor (ADC counts)
+  int valueOut = analogRead(A1);
 
   //Serial.println(value);
 
-  valueV = value * (5.0 / (double)1023);  // Convert to V
+  valueVIn = valueIn * (5.0 / (double)1023);  // Convert to V
+  valueVOut = valueOut * (5.0 / (double)1023);  // Convert to V
 
-  Serial.println(valueV);
+  Serial.println(valueVIn);
+  Serial.println(valueVOut);
 
   //valueFlow = mVtoFlow(valueV); // Convert to l/min (in air)
 

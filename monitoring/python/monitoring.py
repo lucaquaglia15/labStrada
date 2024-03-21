@@ -12,7 +12,7 @@ p = np.poly1d([3.09333, -7.05143, 5.9581, 0.500571])
 ports = serial.tools.list_ports.comports() #returns a list of all com ports
 serialInst = serial.Serial() #create instance of serial port
 
-portVar = "/dev/ttyUSB0" #we know the arduino is on COM4 port
+portVar = "/dev/ttyUSB1" #we know the arduino is on COM4 port
 serialInst.baudrate = 9600 #boud rate of arduino
 serialInst.port = portVar #set port
 serialInst.open() #open serial port communication port
@@ -42,11 +42,12 @@ while True: #infinte loop to listen to data from arduino and post it to db
         #temperature sensor
         print("Temperature = " + str(split_data[0]) + " °C")
         print("Pressure = " + str(split_data[1]) + " mbar")
-        #print("Humidity = " + str(split_data[2]) + " %")
+        print("Humidity = " + str(split_data[3]) + " %")
 
-        #val = (split_data[0],split_data[1],split_data[2])
-        val = (split_data[0],split_data[1])
-        sql = "INSERT INTO envPar (temperature, pressure) VALUES (%s, %s)" #sql query
+        #val = (split_data[0],split_data[1]) #without humidity
+        val = (split_data[0],split_data[1],split_data[3]) #w humi
+        #sql = "INSERT INTO envPar (temperature, pressure) VALUES (%s, %s)" #sql query without humidity
+        sql = "INSERT INTO envPar (temperature, pressure, humidity) VALUES (%s, %s, %s)" #sql query w humidity
         mycursor.execute(sql, val)
 
         mydb.commit() #execute query

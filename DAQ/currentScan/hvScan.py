@@ -7,7 +7,9 @@ import mysql.connector #to connect to db to send the data
 import os  #To create new folders and so on
 import ROOT #Root CERN functions
 import time #For functions such as sleep
-from datetime import datetime #To get date, time and perform operations on them
+#from datetime import datetime #To get date, time and perform operations on them
+import datetime #To get date, time and perform operations on them
+
 import sys #To perform system operation
 
 debug = False
@@ -37,7 +39,9 @@ def switchOff(handle,hvModule,slots,channels,hvApp):
 
 #PT correction
 def ptCorr(temp, press, hvEff):
-  hvApp = hvEff*(constants.T0/temp)*(press/constants.p0)
+  #hvApp = hvEff*(constants.T0/temp)*(press/constants.p0) #ALICE definition
+  alfa = 0.8
+  hvApp = hvEff*((1-alfa)+alfa*(constants.T0/temp)*(press/constants.p0)) #GIF++ definition
   return hvApp
 
 #Get last temp, press and humi from db
@@ -51,7 +55,7 @@ def getPT(mycursor):
 #Check if channels are ramping up/down
 def getStatus(hvModule,handle,totChannels,slots,channels):
     status = [-1] * totChannels
-    print(status)
+    #print(status)
     ramping = False
 
     chStatus = 0
@@ -60,7 +64,7 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
             status[chStatus] = hvModule.getParameter(handle,slots[slot],b"Status",channel)
             chStatus = chStatus+1
 
-    print(status)
+    #print(status)
 
     if status.count(1) != totChannels:
         ramping = True
@@ -74,6 +78,11 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
 def main():
 
     print("---HV scan starting---")
+    
+    debugBase = False #varibale for very basic printouts
+    debugNormal = True #Variable for normal printouts
+    warning = False #Variable for warnings
+    error = False #Variable for errors
 
     arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type)
     
@@ -120,12 +129,26 @@ def main():
     #Calculate total number of channels to set proper HV values later on
     totChannels = sum([len(i) for i in channels])
 
+    #Number of HV points in the scan, to be obtained by counting the lines of the config file
+    #And sent to the db
+    numHVPoints = 0
+
     #Get the configuration of the run from the config file
     with open("/home/pcald32/labStrada/config/configCurrScan.txt") as configFile:
         scanPoints = configFile.readlines()
         scanPoints.pop(0)
         
-        if debug:
+        numHVPoints = len(scanPoints)
+        if debugBase:
+            print("HV points: ", numHVPoints)
+        
+        #insert number of hv points in db
+        points = [numHVPoints,newRun] #A list is needed due to how mysql query works
+        sendNumberOfHvPoints = "UPDATE currentScan SET hvPoints = (%s) WHERE runNumber = (%s)"
+        mycursor.execute(sendNumberOfHvPoints, points)
+        mydb.commit()
+
+        if debugBase:
             print(scanPoints)
 
         for point in scanPoints:
@@ -141,7 +164,7 @@ def main():
             constants.measTime.append(asList[length-2])
             constants.waitTime.append(asList[length-1].replace("\n", ""))
 
-    if debug:
+    if debugBase:
         print(effHV)
     
     #Define CAEN HV module object (according to CAEN.py class) and try to connect to it
@@ -161,10 +184,11 @@ def main():
     #Go through the points of the scan
     for i in range(int(len(constants.measTime))):
         
-        if debug:
+        if debugBase:
             print(i)
     
-        print("Scanning point:",i+1)
+        if debugNormal:
+            print("Scanning point:",i+1)
         scanFol = "/home/pcald32/runs/currentScans/scan_"+str(newRun)+"/HV_"+str(i+1)
         if not os.path.exists(scanFol):
             os.makedirs(scanFol)
@@ -227,10 +251,13 @@ def main():
         #Set corrected voltage to proper HV channel and then wait that voltages reaches desired value
         for slot in range(len(slots)):
             for iCh, channel in enumerate(channels[slot]):
-                print("Slot",slots[slot],"channel",channel,"HVeff",effHV[slot][iCh+(i*len(channels[slot]))])
+                if debugNormal:
+                    print("Slot",slots[slot],"channel",channel,"HVeff",effHV[slot][iCh+(i*len(channels[slot]))])
                 hvApp = ptCorr(temperature, pressure, float(effHV[slot][iCh+(i*len(channels[slot]))]))
                 hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
-                print("HVapp",hvApp)
+                
+                if debugNormal:
+                    print("HVapp",hvApp)
 
         #Check if connection to HV module is active
         if handle.value != 0:
@@ -242,8 +269,12 @@ def main():
         time.sleep(2)
 
         #Check if the channels are ramping
+        printStatus = False
         while getStatus(hvModule,handle,totChannels,slots,channels) == True:
-            print("Channels are ramping")
+            if printStatus == False:
+                print("Channels are ramping")
+                printStatus = True
+            
             time.sleep(2)
 
         print("Ramping completed")
@@ -287,7 +318,8 @@ def main():
 
             temperature = lastEnv[0][1]+273.15
             pressure = lastEnv[0][2]
-            print("temperature",temperature,"pressure",pressure)
+            if debugNormal:
+                print("temperature",temperature,"pressure",pressure)
 
             hTemp.Fill(lastEnv[0][1]) #Fill temperature histo
             hPress.Fill(lastEnv[0][2]) #Fill pressure histo
@@ -307,7 +339,8 @@ def main():
                     hHVmon[globalIndex].Fill(hvMon)
                     hImon[globalIndex].Fill(iMon)
                     hHVapp[globalIndex].Fill(hvSet)
-                    print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
+                    if debugNormal:
+                        print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
                     globalIndex = globalIndex+1
                 
             time.sleep(constants.measureInt)
@@ -344,7 +377,7 @@ def main():
         dipOut = "scan_"+str(newRun)+"_DIP_"
         caenOut = "scan_"+str(newRun)+"_CAEN_"
 
-    print("\n\n --- Efficiency scan is over --- \n\n")
+    print("\n\n --- Current scan is over --- \n\n")
 
     #Set desired voltage on the RPC at the end of the scan
     if arguments[4] == "": #HV to set after the scan was NOT provided by the -> Set 0 V and switch off the channels
@@ -357,7 +390,7 @@ def main():
     print("Disconnected from HV module")
 
     #Insert date and time of the end of the scan in the db
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     endTimeRun = [now,newRun]
     sendEndTime = "UPDATE currentScan SET endDate = (%s) WHERE runNumber = (%s)"
     mycursor.execute(sendEndTime, endTimeRun)

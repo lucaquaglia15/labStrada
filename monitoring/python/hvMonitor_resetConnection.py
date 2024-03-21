@@ -48,6 +48,10 @@ def main():
         hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
         handle = hvModule.connect()
         print("handle in main",handle)
+        
+        #if handle != 0:
+        #	time.sleep(10)
+        #	handle = hvModule.connect()
 
         #Get CAEN HV data
         for slot in range(len(slots)):
@@ -59,21 +63,11 @@ def main():
                 status = hvModule.getParameter(handle,slots[slot],b"Status",channel)
                 name = hvModule.getChName(handle,slots[slot],channel)
                 hvEff = 0  #Just a test since PMTs have no effective HV
-                #print("ch name",name)
-
-                #insert into db
-                val = (slots[slot],channel,name,hvSet,hvMon,hvEff,iMon,status)
-
-                hvMonitorQuery = "INSERT INTO CAEN (slot,channel,chName,hvSet,hvMon,hvEff,iMon,Status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)" #sql query
-                mycursor.execute(hvMonitorQuery, val)
-
-                mydb.commit() #execute query
-	
-	
+ 	
         hvModule.disconnect(handle)
 
         alive = alive+1
-        time.sleep(30)
+        time.sleep(0.01)
 
 if __name__ == "__main__":
     main()

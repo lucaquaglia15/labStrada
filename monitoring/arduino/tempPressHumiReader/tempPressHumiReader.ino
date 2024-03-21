@@ -30,14 +30,14 @@ void setup() {
 
   //Serial.println(status);
   
-  if (!status) {
-    Serial.println("Could not find a valid BME280 sensor, check wiring!");
-    while (1);
-  }
+  //if (!status) {
+  //  Serial.println("Could not find a valid BME280 sensor, check wiring!");
+  //  while (1);
+  //}
   
   //Serial.println("-- Default Test --");
-  delayTime = 600000;
-  //delayTime = 1000;
+  delayTime = 600000; //10 min
+  //delayTime = 10000; //10 sec
 
 
   //Serial.println();
@@ -50,7 +50,7 @@ void loop() {
   //Values set up for serial communication
   temp = bme.readTemperature();
   press = bme.readPressure()/100.0F;
-  //humi = bme.readHumidity();
+  humi = bme.readHumidity();
 
   voltage = analogRead(inputPin)*(3.3/4096) + 0.12;
   
@@ -58,10 +58,10 @@ void loop() {
   Serial.print(temp);
   Serial.print("x");
   Serial.print(press);
-  //Serial.print("x");
-  //Serial.print(humi);
   Serial.print("x");
-  Serial.println(voltage);
+  Serial.print(voltage);
+  Serial.print("x");
+  Serial.println(humi);
 
   
   delay(delayTime);
