@@ -125,7 +125,7 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
 
     return ramping
 
-#main function for current scan
+#main function for efficiency scan
 debug = False
 
 def main():
@@ -164,6 +164,7 @@ def main():
         os.makedirs(newPath)
     
     #Define arrays to fill for tree branches
+    eventNumber = array.array( 'l', [ 0 ] )
     size = array.array( 'l', [ 0 ] )
     aChannels = array.array('i')
     aTimes = array.array('f')
@@ -282,13 +283,6 @@ def main():
     daqOut = "scan_"+str(newRun)+"_DAQ_"
     waveOut = "scan_"+str(newRun)+"_WAVE_"
 
-    ###############################################################
-    #                                                             #
-    # Define process for HV correction to be exectued in parallel #
-    #                                                             #
-    ###############################################################
-    hvCorrProc = Process(target=PTCorr, args=[9800,950,25])
-
     ################################
     #                              #
     # Begin for cycle on HV points #
@@ -300,6 +294,7 @@ def main():
 
         #Create TTree to save DAQ data
         treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
+        treeDAQ.Branch('eventNumber', eventNumber, 'eventNumber/I')
         treeDAQ.Branch('size', size, 'size/I')
         treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
         treeDAQ.Branch("times",aTimes,'times[size]/F')
@@ -389,6 +384,15 @@ def main():
         hFlow = ROOT.TH1F("Flow_HV"+str(i+1),"Flow_HV"+str(i+1),1000,0,1)
         hFlow.GetXaxis().SetCanExtend(True)
 
+        ###############################################################
+        #                                                             #
+        # Define process for HV correction to be exectued in parallel #
+        #                                                             #
+        ###############################################################
+        hvCorrProc = Process(target=applyPTCorr, args=[mydb,mycursor,hTemp,hPress,hHumi,hFlow,
+                                                       hvModule,handle,slots,channels,hHVeff,
+                                                       hHVapp,hHVmon,hImon,effHV])
+
         #First ramp up/down of voltage at the start of the scan
         #Get last PT values to apply initial correction to HV
         mydb.cmd_refresh(1)
@@ -463,7 +467,9 @@ def main():
     
         while waitingIRQ:
 
-            #PT correction every 30 seconds
+            #PT correction every 30 seconds, executed in parallel to the rest of the code
+            hvCorrProc.start()
+            """
             if time.perf_counter() - start > 30: #more than 30 seconds since last measurement
                 VMEbridge.startPulser(handle,0) #start pulser (veto) during PT correction
                 start = time.perf_counter() #Update last time of correction
@@ -518,6 +524,7 @@ def main():
                         globalIndex = globalIndex+1
 
                 VMEbridge.stopPulser(handle,0)
+            """
 
             #1000 triggers in the VME scaler -> increase contaMille
             if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
@@ -611,7 +618,8 @@ def main():
                         lChannels,lTimes = map(list,zip(*event))
                         print(lChannels, lTimes)
                         
-                        size[0] = len(lChannels)
+                        size[0] = len(lChannels) #number of channels with ahit per event
+                        eventNumber[0] = contaMille + VMEbridge.readRegister(handle,0x1D) #event number taken from the bridge register
                         
                         #Fill tree
                         for j in range(len(lChannels)):
