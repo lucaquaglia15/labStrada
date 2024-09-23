@@ -3,6 +3,8 @@
 import mysql.connector #to connect to db to send the data
 import serial.tools.list_ports #for serial communication 
 import numpy as np
+from dotenv import dotenv_values
+
 
 #Define polynomial for conversion from mV to flow
 #coeff = 0.57
@@ -12,16 +14,18 @@ p = np.poly1d([3.09333, -7.05143, 5.9581, 0.500571])
 ports = serial.tools.list_ports.comports() #returns a list of all com ports
 serialInst = serial.Serial() #create instance of serial port
 
-portVar = "/dev/ttyUSB0" #we know the arduino is on USB0 port
+portVar = "/dev/ttyUSB1" #we know the arduino is on USB0 port
 serialInst.baudrate = 9600 #boud rate of arduino
 serialInst.port = portVar #set port
 serialInst.open() #open serial port communication port
 
+secrets = dotenv_values("/home/pcald32/labStrada/.env")
+
 mydb = mysql.connector.connect( #db object on localhost
-  host="localhost",
-  user="root",
-  password="pcald32",
-  database="labStrada"
+  host=secrets["host"],
+  user=secrets["user"],
+  password=secrets["password"],
+  database=secrets["database"]
 )
 
 mycursor = mydb.cursor()

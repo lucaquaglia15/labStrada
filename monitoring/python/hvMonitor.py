@@ -3,7 +3,6 @@
 import constants #constants
 import sys #To perform system operation
 sys.path.insert(0, '/home/pcald32/labStrada/DAQ/currentScan') #import CAEN.py file from currentScan folder
-
 from CAEN import CAEN
 #import numpy as np #numpy
 #import ctypes #for C++ function binding (CAEN HV library for example)
@@ -13,7 +12,7 @@ import mysql.connector #to connect to db to send the data
 import time #For functions such as sleep
 import datetime #To get date, time and perform operations on them
 #import os #To create new folders and so on
-
+from dotenv import dotenv_values
 
 debug = True
 
@@ -21,13 +20,15 @@ def main():
     print("---HV monitor starting---")
     alive = 0
 
-    #connect to mysql db
-    mydb = mysql.connector.connect( #db object
-        host="localhost",
-        user="root",
-        password="pcald32",
-        database="labStrada"
+    secrets = dotenv_values("/home/pcald32/labStrada/.env")
+
+    mydb = mysql.connector.connect( #db object on localhost
+        host=secrets["host"],
+        user=secrets["user"],
+        password=secrets["password"],
+        database=secrets["database"]
     )
+
     mycursor = mydb.cursor()
 
     #Get values from constants.py
@@ -36,44 +37,46 @@ def main():
     channels = []
     channels = constants.channels #HV channels
     
-    #create a histogram of the TEST1 channel HV
-
     #Infinite loop to monitor HV and current
-    #Connect and disconnect every time from the HV module to not
-    #keep the connection busy for too long
+    
+    #Connect to HV module
+    hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
+    handle = hvModule.connect()
+    print("handle in main",handle)
+
     while True:
-        print("---Alive counter:",alive,"---")
+        try:
+            print("---Alive counter:",alive,"---")
         
-        #Connect to HV module
-        hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
-        handle = hvModule.connect()
-        print("handle in main",handle)
+            #Get CAEN HV data
+            for slot in range(len(slots)):
+                for iCh, channel in enumerate(channels[slot]):
+                    print("Slot",slots[slot],"channel",channel)
+                    hvMon = hvModule.getParameter(handle,slots[slot],b"VMon",channel)
+                    iMon = hvModule.getParameter(handle,slots[slot],b"IMon",channel)
+                    hvSet = hvModule.getParameter(handle,slots[slot],b"V0Set",channel)
+                    status = hvModule.getParameter(handle,slots[slot],b"Status",channel)
+                    i0Set = hvModule.getParameter(handle,slots[slot],b"I0Set",channel)
+                    name = hvModule.getChName(handle,slots[slot],channel)
+                    hvEff = 0  #Just a test since PMTs have no effective HV
 
-        #Get CAEN HV data
-        for slot in range(len(slots)):
-            for iCh, channel in enumerate(channels[slot]):
-                print("Slot",slots[slot],"channel",channel)
-                hvMon = hvModule.getParameter(handle,slots[slot],b"VMon",channel)
-                iMon = hvModule.getParameter(handle,slots[slot],b"IMon",channel)
-                hvSet = hvModule.getParameter(handle,slots[slot],b"V0Set",channel)
-                status = hvModule.getParameter(handle,slots[slot],b"Status",channel)
-                name = hvModule.getChName(handle,slots[slot],channel)
-                hvEff = 0  #Just a test since PMTs have no effective HV
-                #print("ch name",name)
+                    #insert into db every four iteractions of 15 seconds  (1 per minute)
+                    if alive % 4 == 0:
+                        print("Inserting data into db")
+                        val = (slots[slot],channel,name,hvSet,hvMon,hvEff,iMon,status,i0Set)
 
-                #insert into db
-                val = (slots[slot],channel,name,hvSet,hvMon,hvEff,iMon,status)
+                        hvMonitorQuery = "INSERT INTO CAEN (slot,channel,chName,hvSet,hvMon,hvEff,iMon,Status,i0Set) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)" #sql query
+                        mycursor.execute(hvMonitorQuery, val)
 
-                hvMonitorQuery = "INSERT INTO CAEN (slot,channel,chName,hvSet,hvMon,hvEff,iMon,Status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)" #sql query
-                mycursor.execute(hvMonitorQuery, val)
+                        mydb.commit() #execute query
+                        
+            alive = alive+1
+            time.sleep(15)
 
-                mydb.commit() #execute query
-	
-	
-        hvModule.disconnect(handle)
-
-        alive = alive+1
-        time.sleep(30)
+        except KeyboardInterrupt as e:
+            hvModule.disconnect(handle)    
+            print('Disconnecting from mainframe and stopping logger')
+            exit()
 
 if __name__ == "__main__":
     main()

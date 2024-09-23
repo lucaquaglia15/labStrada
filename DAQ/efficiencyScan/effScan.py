@@ -14,6 +14,7 @@ import os #To create new folders and so on
 import sys #To perform system operation
 import array
 import constants
+from dotenv import dotenv_values
 sys.path.insert(0, '/home/pcald32/labStrada/DAQ/currentScan') #import CAEN.py file from currentScan folder
 from CAEN import CAEN
 
@@ -67,12 +68,14 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
 
     return ramping
 
+#main function for current scan
 debug = False
 
-#main function for current scan
 def main():
 
     print("---Efficiency scan starting---")
+
+    secrets = dotenv_values("/home/pcald32/labStrada/.env")
 
     arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type, #3 = comments, #4 = HV to set at the end of the scan)
     
@@ -80,11 +83,11 @@ def main():
         #add "" until size 5 is reached, some information on the run will be lost but it doesn't matter
         arguments.append("")
 
-    mydb = mysql.connector.connect( #db object
-        host="localhost",
-        user="root",
-        password="pcald32",
-        database="labStrada"
+    mydb = mysql.connector.connect( #db object on localhost
+        host=secrets["host"],
+        user=secrets["user"],
+        password=secrets["password"],
+        database=secrets["database"]
     )
     mycursor = mydb.cursor()
     
@@ -216,12 +219,13 @@ def main():
         treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
         treeDAQ.Branch("times",aTimes,'times[size]/F')
 
-        
+        #Start veto while TDC configuration is ongoing
         print("starting pulser")
         VMEbridge.configPulser(handle,0,1,40000000,0,0,0,0)
         VMEbridge.setOutputConf(handle,0,0,0,6)
         VMEbridge.startPulser(handle,0)
-
+        
+        #Configure TDCs
         print("\n configuring TDCs \n")
 
         for tdc in range(len(BA)):
@@ -252,7 +256,7 @@ def main():
         if not os.path.exists(scanFol):
             os.makedirs(scanFol)
 
-        #Go in the folder 
+        #Go in the folder and create root files
         dipOut = dipOut+"HV"+str(i+1)+".root" 
         caenOut = caenOut+"HV"+str(i+1)+".root"
         daqOut = daqOut+"HV"+str(i+1)+".root"
@@ -340,11 +344,11 @@ def main():
                 printedMessage = True
                 print("Channels are ramping")
             
-            time.sleep(2)
+            time.sleep(2) #sleep for two seconds to relax a bit, not needed but ok, it can be used
 
         print("Ramping completed")
 
-        hvModule.disconnect(handle)
+        hvModule.disconnect(handle) #disconnect from mainframe during waiting time
 
         print("Waiting for waiting time")
         print(constants.waitTime[i],"s")
@@ -358,7 +362,9 @@ def main():
         VMEbridge.stopPulser(handle,0) #remove veto
         start = time.perf_counter() #start timer
     
-        #temporaneo
+        #since we use the bridge to count the number of triggers and it has only 10 bits (up to 1023)
+        #and once it reaches the limit it is automatically reset, every 1000 triggers this variable is increased
+        #by 1000 to keep track of how many 1000 triggers we got
         contaMille = 0
 
         if hex(VMEbridge.checkIRQ(handle)) == hex(0x0):
@@ -367,9 +373,9 @@ def main():
     
         while waitingIRQ:
 
-            #PT correction
+            #PT correction every 30 seconds
             if time.perf_counter() - start > 30: #more than 30 seconds since last measurement
-                VMEbridge.startPulser(handle,0)
+                VMEbridge.startPulser(handle,0) #start pulser (veto) during PT correction
                 start = time.perf_counter() #Update last time of correction
                 mydb.cmd_refresh(1) #refresh db to get last entry
             

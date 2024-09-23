@@ -2,7 +2,9 @@
 
 import mysql.connector #to connect to db to send the data
 import serial.tools.list_ports #for serial communication 
-import numpy as np
+from dotenv import dotenv_values
+
+secrets = dotenv_values("/home/pcald32/labStrada/.env")
 
 #Supply voltage to power humidity sensor
 Vsupp = 5 #5 Volts
@@ -17,10 +19,10 @@ serialInst.port = portVar #set port
 serialInst.open() #open serial port communication port
 
 mydb = mysql.connector.connect( #db object on localhost
-  host="localhost",
-  user="root",
-  password="pcald32",
-  database="labStrada"
+  host=secrets["host"],
+  user=secrets["user"],
+  password=secrets["password"],
+  database=secrets["database"]
 )
 
 mycursor = mydb.cursor()

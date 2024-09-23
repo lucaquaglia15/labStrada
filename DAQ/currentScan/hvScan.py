@@ -9,8 +9,8 @@ import ROOT #Root CERN functions
 import time #For functions such as sleep
 #from datetime import datetime #To get date, time and perform operations on them
 import datetime #To get date, time and perform operations on them
-
 import sys #To perform system operation
+from dotenv import dotenv_values
 
 debug = False
 
@@ -78,6 +78,8 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
 def main():
 
     print("---HV scan starting---")
+
+    secrets = dotenv_values("/home/pcald32/labStrada/.env")
     
     debugBase = False #varibale for very basic printouts
     debugNormal = True #Variable for normal printouts
@@ -90,12 +92,13 @@ def main():
         #add "" until size 5 is reached, some information on the run will be lost but it doesn't matter
         arguments.append("")
 
-    mydb = mysql.connector.connect( #db object
-        host="localhost",
-        user="root",
-        password="pcald32",
-        database="labStrada"
+    mydb = mysql.connector.connect( #db object on localhost
+        host=secrets["host"],
+        user=secrets["user"],
+        password=secrets["password"],
+        database=secrets["database"]
     )
+
     mycursor = mydb.cursor()
 
     #Check the mixture that is being flushed and send the data to db

@@ -16,6 +16,7 @@ import array
 import constants #Constant parameters for run configuration
 import TeledyneLeCroyPy #Control oscilloscope
 from multiprocessing import Process #To parallelize processes (PT corr mainly)
+from dotenv import dotenv_values
 sys.path.insert(0, '/home/pcald32/labStrada/DAQ/currentScan') #import CAEN.py file from currentScan folder
 from CAEN import CAEN
 
@@ -163,18 +164,21 @@ def main():
 
     print("---Efficiency scan starting---")
 
+    secrets = dotenv_values("/home/pcald32/labStrada/.env")
+
     arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type, #3 = comments, #4 = HV to set at the end of the scan)
     
     while len(arguments) < 5: #Check if size of arguments is smaller than 3 (it means that some argument is missing by mistake)
         #add "" until size 5 is reached, some information on the run will be lost but it doesn't matter
         arguments.append("")
 
-    mydb = mysql.connector.connect( #db object
-        host="localhost",
-        user="root",
-        password="pcald32",
-        database="labStrada"
+    mydb = mysql.connector.connect( #db object on localhost
+        host=secrets["host"],
+        user=secrets["user"],
+        password=secrets["password"],
+        database=secrets["database"]
     )
+
     mycursor = mydb.cursor()
     
     getLastRun = ("SELECT runNumber FROM efficiencyScan ORDER BY date DESC LIMIT 1")
