@@ -8,3 +8,4 @@ gasKill.py
 *.so
 *.d
 *.pcm
+analysis/humidityTest/saveTempPress.py
