@@ -27,6 +27,9 @@ class CAEN:
 	def __repr__(self) -> str:
 		return f"{type(self).__name__}(address={self.address}, user={self.user}, password={self.password})"
 
+	def __del__(self):
+		print ("Object gets destroyed");
+
 	#Open connection with CAEN module
 	def connect(self):
 		cIp = ctypes.c_char_p(self.address)
@@ -50,6 +53,7 @@ class CAEN:
 				print("Retrying:")
 				print("Attempt #:",attempts, " out of ",MAX_ATTEMPTS)
 				ret = pyCAENinit(0,0,cIp,cUser,cPassword,ctypes.pointer(handle))
+				print("Reconnection result: ", ret)
 				attempts = attempts+1
 				time.sleep(2)
 			else:
@@ -69,6 +73,7 @@ class CAEN:
 		pyCAENend.argtypes = [ctypes.c_int]
 		pyCAENend.restype = ctypes.c_int
 		ret3 = pyCAENend(handle)
+
 
 	#Set CAEN HV parameter
 	def setParameter(self,handle,slot,paramName,channel,paramValue):
@@ -109,7 +114,7 @@ class CAEN:
 
 		ret5 = pyCAENgetChParam(handle,cSlot,cParamName,1,ctypes.pointer(cChannel),ctypes.pointer(param))
 
-		print(param[0])
+		print(paramName, param[0], "res ", ret5)
 
 		return param[0]
 
