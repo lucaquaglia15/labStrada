@@ -5,6 +5,7 @@ from TDC import TDC #Functions specific to the V488A TDC module
 import numpy as np #numpy
 import ctypes #for C++ function binding (CAEN HV library for example)
 import pathlib #for library paths (to use C++ libraries in python)
+import pandas
 import mysql.connector #to connect to db to send the data
 import ROOT #Root CERN functions
 import time #For functions such as sleep
@@ -102,6 +103,36 @@ def applyPTCorr(mydb,mycursor,hTemp,hPress,hHumi,hFlow,hvModule,handle,slots,cha
                     hHVapp[globalIndex].Fill(hvSet)
                     print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
                     globalIndex = globalIndex+1
+
+#Write oscilloscope data
+def writeScope(scope,waveOut,channels): #scope = oscilloscope object, waveOut = output .txt file
+                                        #channels = list of active channels (defined in main functuon)
+    scope.wait_for_single_trigger() #Wait for a trigger, it will be delayed accordingly 
+                                    #(Accordingly = more than for the TDC modules, to allow for IRQ creation)
+                                    #To be checked
+    data = {} #Dictionary
+    
+    for n_channel in channels: #Loop to get the data from active channels
+        data[n_channel] = scope.get_waveform(n_channel=n_channel)
+
+    wf = []
+    for n_channel in data:
+        for i,_ in enumerate(data[n_channel]['waveforms']):
+            df = pandas.DataFrame(_)
+            df['n_segment'] = i
+            df['n_channel'] = n_channel
+            wf.append(df)
+    
+    #wf = pandas.concat(wf) #original
+    wf = pandas.concat(wf, axis=1) #In theory this should concatenate the dataframes according to the initial "axis"
+                                   #which is the common timebase to all channels, as reported in:
+                                   #https://www.geeksforgeeks.org/pandas-concat-function-in-python/ but it has to be
+                                   #checked with the data
+    #Write trigger number and df to output .txt file
+    wf.to_csv(waveOut, sep='\t', index=False) #write event
+    waveOut.write("\n") #New line at the end of the event
+    waveOut.flush() #Write out to the txt file
+
 
 #Check if channels are ramping up/down
 def getStatus(hvModule,handle,totChannels,slots,channels):
@@ -267,12 +298,16 @@ def main():
     ######################
     useScope = False #If True -> use oscilloscope, go into the setup
     if useScope:
+        channels = [1,2,3,4] #List of active channels
         scope = TeledyneLeCroyPy.LeCroyWaveRunner('VICP::90.147.203.158') #Connect to scoper via TCP/IP
         scope.set_tdiv('20NS') #Set time base division of the scope
-        scope.set_vdiv(1,0.5) #Amplitude in volts channel 1 (1V peak to peak)
-        scope.set_vdiv(2,0.5) #Amplitude in volts channel 2 (1V peak to peak)
-        scope.set_vdiv(3,0.5) #Amplitude in volts channel 3 (1V peak to peak)
-        scope.set_vdiv(4,0.5) #Amplitude in volts channel 4 (1V peak to peak)
+        
+        for i in channels:
+            scope.set_vdiv(i,0.5) #Set amplitude of all channels (1V peak to peak)
+        #scope.set_vdiv(1,0.5) #Amplitude in volts channel 1 (1V peak to peak)
+        #scope.set_vdiv(2,0.5) #Amplitude in volts channel 2 (1V peak to peak)
+        #scope.set_vdiv(3,0.5) #Amplitude in volts channel 3 (1V peak to peak)
+        #scope.set_vdiv(4,0.5) #Amplitude in volts channel 4 (1V peak to peak)
         scope.set_trig_mode('Ext') #External trigger
         scope.set_trig_level('Ext',-0.5) #-0.5 V -> for NIM signal (-0.9 V)
         scope.set_trig_slope('Negative') #Falling edge for NIM signal
@@ -384,14 +419,16 @@ def main():
         hFlow = ROOT.TH1F("Flow_HV"+str(i+1),"Flow_HV"+str(i+1),1000,0,1)
         hFlow.GetXaxis().SetCanExtend(True)
 
-        ###############################################################
-        #                                                             #
-        # Define process for HV correction to be exectued in parallel #
-        #                                                             #
-        ###############################################################
+        #################################################################################
+        #                                                                               #
+        # Define process for HV correction and scope writing to be exectued in parallel #
+        #                                                                               #
+        #################################################################################
         hvCorrProc = Process(target=applyPTCorr, args=[mydb,mycursor,hTemp,hPress,hHumi,hFlow,
                                                        hvModule,handle,slots,channels,hHVeff,
                                                        hHVapp,hHVmon,hImon,effHV])
+        
+        writeScopeProc = Process(target=writeScope,args=[scope,waveOut,channels])
 
         #First ramp up/down of voltage at the start of the scan
         #Get last PT values to apply initial correction to HV
@@ -576,12 +613,22 @@ def main():
                 
                 break
         
-            else:
+            else: #We have an IRQ from one or more TDCs
                 VMEbridge.stopPulser(handle,0)
                 IRQlevel = hex(VMEbridge.checkIRQ(handle))
                 event = []
 
-                while IRQlevel != hex(0x0):
+                #Event number taken from the bridge register to be saved in the tree
+                eventNumber[0] = contaMille + VMEbridge.readRegister(handle,0x1D) 
+                
+                #Write oscilloscope data (if the variable is true)
+                if useScope:
+                    waveOut.write(str(eventNumber[0])+"\n") #Write trigger number to the output .txt file
+                    writeScopeProc.start() #write function started in parallel
+
+                #Send veto signal while IRQ is still active (TDC) 
+                #And data is being written by the oscilloscope (this could be slow so we prefer to wait)
+                while IRQlevel != hex(0x0) and writeScopeProc.is_alive():
                     #VMEbridge.disableIRQ(handle,111)
 
                     VMEbridge.startPulser(handle,0)
@@ -618,8 +665,7 @@ def main():
                         lChannels,lTimes = map(list,zip(*event))
                         print(lChannels, lTimes)
                         
-                        size[0] = len(lChannels) #number of channels with ahit per event
-                        eventNumber[0] = contaMille + VMEbridge.readRegister(handle,0x1D) #event number taken from the bridge register
+                        size[0] = len(lChannels) #number of channels with a hit per event
                         
                         #Fill tree
                         for j in range(len(lChannels)):
