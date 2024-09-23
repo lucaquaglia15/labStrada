@@ -16,6 +16,7 @@
 #include "TF1.h"
 #include <algorithm> // std::min_element
 #include <iterator>  // std::begin, std::end
+#include "TString.h"
 
 using namespace std;
 using namespace TMath;
@@ -23,9 +24,9 @@ using namespace TMath;
 const char ext[20] =".root";
 const int detNum = 1;
 
-void res() {
+void res(const int runNumber) {
 
-    gSystem->cd("/home/pcald32/runs/currentScans/scan_12");
+    gSystem->cd(Form("/home/pcald32/runs/currentScans/scan_%d",runNumber));
 
     //define vectors for HV and current in each scan
     vector <float> HVeff, HVapp, Imon;
@@ -33,11 +34,11 @@ void res() {
     double init_q, init_m = 0;
     
     for (int i = 0; i < 21; i++) {
-        gSystem->cd(("/home/pcald32/runs/currentScans/scan_12/HV_"+to_string(i+1)).c_str());
+        gSystem->cd(Form(("/home/pcald32/runs/currentScans/scan_%d/HV_"+to_string(i+1)).c_str(),runNumber));
 
-        cout << "Entering folder /home/pcald32/runs/currentScans/scan_12/HV_"+to_string(i+1) << endl;
+        cout << "Entering folder /home/pcald32/runs/currentScans/scan_50/HV_"+to_string(i+1) << endl;
 
-        TFile *fin = new TFile(("scan_12_CAEN_HV"+to_string(i+1)+".root").c_str(),"READ");
+        TFile *fin = new TFile(Form(("scan_%d_CAEN_HV"+to_string(i+1)+".root").c_str(),runNumber),"READ");
 
         TH1F *hHVapp = (TH1F*)fin->Get(("ECOgas_HV_app_"+to_string(i+1)).c_str());
         TH1F *hHVeff = (TH1F*)fin->Get(("ECOgas_HV_eff_"+to_string(i+1)).c_str());
@@ -52,7 +53,7 @@ void res() {
         eHVapp.push_back(hHVapp->GetMeanError());
         eImon.push_back(hImon->GetStdDev());
 
-        gSystem->cd("/home/pcald32/runs/currentScans/scan_13");
+        //gSystem->cd("/home/pcald32/runs/currentScans/scan_13");
     }
 
     sort(HVeff.begin(),HVeff.end());
