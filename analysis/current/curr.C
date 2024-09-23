@@ -1,3 +1,6 @@
+//Root code to analyze current scan
+//To execute enter root -> .x curr.C(run number) [for example .x curr.C(49)]
+
 #include "TCanvas.h"
 #include "Riostream.h"
 #include "TGraph.h"
@@ -16,6 +19,7 @@
 #include "TF1.h"
 #include <algorithm> // std::min_element
 #include <iterator>  // std::begin, std::end
+#include <filesystem> //to count the number of folders in each scan
 
 using namespace std;
 using namespace TMath;
@@ -23,19 +27,24 @@ using namespace TMath;
 const char ext[20] =".root";
 const int detNum = 1;
 
-void curr() {
+void curr(const int scan) {
 
-	int scan = 45;
 	string folder = "/home/pcald32/runs/currentScans/scan_"+to_string(scan)+"/";
-
+	
     gSystem->cd(folder.c_str());
+    
+    //count how many points there are in the scan by counting the number of folders
+    int nfolders = 0; //number of folders in the scan = number of hv points
+    for (auto const& dir+_entry :std::filesystem::directory_iterator{folder}) {
+    	nfolders++;
+    }
 
     //define vectors for HV and current in each scan
     vector <float> HVeff, HVapp, Imon;
     vector <float> eHVeff, eHVapp, eImon;
     double init_q, init_m = 0;
     
-    for (int i = 0; i < 30; i++) {
+    for (int i = 0; i < nfolders; i++) {
         gSystem->cd((folder+"HV_"+to_string(i+1)).c_str());
 
         cout << "Entering folder " + folder+"HV_"+to_string(i+1) << endl;
@@ -49,11 +58,13 @@ void curr() {
 
         HVeff.push_back(hHVeff->GetMean());
         HVapp.push_back(hHVapp->GetMean());
-        Imon.push_back(hImon->GetMean()/2500);
+        //Imon.push_back(hImon->GetMean()/2500);
+        Imon.push_back(hImon->GetMean());
 
         eHVeff.push_back(hHVeff->GetMeanError());
         eHVapp.push_back(hHVapp->GetMeanError());
-        eImon.push_back(hImon->GetMeanError()/2500);
+        //eImon.push_back(hImon->GetMeanError()/2500);
+        eImon.push_back(hImon->GetMeanError());
 
         //gSystem->cd("/home/pcald32/runs/currentScans/scan_34");
     }
@@ -64,7 +75,6 @@ void curr() {
     sort(eImon.begin(),eImon.end());
 
     TGraphErrors *IVcurve = new TGraphErrors(HVapp.size(),&HVeff[0],&Imon[0],&eHVeff[0],&eImon[0]);
-
 
     IVcurve->SetMarkerStyle(8);
     IVcurve->SetMarkerSize(2);
