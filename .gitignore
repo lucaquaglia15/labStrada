@@ -5,3 +5,6 @@ gasKill.py
 *.png
 *.pdf
 *.env
+*.so
+*.d
+*.pcm
