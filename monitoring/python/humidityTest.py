@@ -5,7 +5,6 @@ import serial.tools.list_ports #for serial communication
 import numpy as np
 from dotenv import dotenv_values
 
-
 #Define polynomial for conversion from mV to flow
 #coeff = 0.57
 p = np.poly1d([3.09333, -7.05143, 5.9581, 0.500571])
