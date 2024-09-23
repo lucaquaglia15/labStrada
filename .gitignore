@@ -4,3 +4,4 @@ gasKill.py
 *.pyc
 *.png
 *.pdf
+*.env
