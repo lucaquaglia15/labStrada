@@ -9,3 +9,6 @@ gasKill.py
 *.d
 *.pcm
 analysis/humidityTest/saveTempPress.py
+DAQ/currentScan/constants.py
+DAQ/efficiencyScan/constants.py
+monitoring/python/constants.py
