@@ -118,6 +118,7 @@ def main():
     yITemperature = array('d')
     xITemperature = array('d')
     xRTemperature = array('d')
+    xRTemperatureNorm = array('d')
 
     pressureLab = array('d')
 
@@ -820,7 +821,8 @@ def main():
         maxRateTot.append(maxRate[i])
     
     for i in range(len(averageTemperatureList)):
-        xRTemperature.append(averageTemperatureList[i])   
+        xRTemperature.append(averageTemperatureList[i])
+        xRTemperatureNorm.append(averageTemperatureList[i] - 20) #temp normalized to 20°C
 
     for i in range(len(resistanceList)):
         resistanceArray.append(resistanceList[i]) 
@@ -900,8 +902,10 @@ def main():
     c18.cd()
     #print("Len di xITemperature: ", len(xITemperature), "Len di yITemperature: ", len(yITemperature), "Len di errorsTemperature: ", len(errorsTemperature), "Len di errorsIMon: ", len(errorsIMon))
     #print("xITemperature: ", xITemperature, "yITemperature: ", yITemperature, "errorsTemperature: ", errorsTemperature, "errorsIMon: ", errorsIMon)
-
-    grResistanceTemperature = ROOT.TGraphErrors(len(xRTemperature), xRTemperature, resistanceArray, errorsTemperature, errResistance)
+    #Original
+    #grResistanceTemperature = ROOT.TGraphErrors(len(xRTemperature), xRTemperature, resistanceArray, errorsTemperature, errResistance)
+    #Normalized to 20°C
+    grResistanceTemperature = ROOT.TGraphErrors(len(xRTemperature), xRTemperatureNorm, resistanceArray, errorsTemperature, errResistance)
 
     grResistanceTemperature.SetLineColor(2)
     grResistanceTemperature.SetLineWidth(4)
