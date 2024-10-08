@@ -51,7 +51,7 @@ def getPT(mycursor):
 #Function to apply the PT correction and write the data to the root file
 #do this in parallel with the rest of the DAQ
 def applyPTCorr(mydb,mycursor,hTemp,hPress,hHumi,hFlow,hvModule,handle,slots,channels,
-                hHVeff,hHVapp,hHVmon,hImon,effHV):
+                hHVeff,hHVapp,hHVmon,hImon,effHV,i):
     while True:
         time.sleep(30)
 
@@ -77,33 +77,33 @@ def applyPTCorr(mydb,mycursor,hTemp,hPress,hHumi,hFlow,hvModule,handle,slots,cha
             print("Pausing current scan until PT resumes")  
             time.sleep(3)
 
-            temperature = lastEnv[0][1]+273.15
-            pressure = lastEnv[0][2]
+        temperature = lastEnv[0][1]+273.15
+        pressure = lastEnv[0][2]
 
-            hTemp.Fill(lastEnv[0][1]) #Fill temperature histo
-            hPress.Fill(lastEnv[0][2]) #Fill pressure histo
-            #hHumi.Fill(lastEnv[0][3]) #Fill humidity histo
-            #hFlow.Fill(lastEnv[0][4]) #Fill flow histo
-           
-            for slot in range(len(slots)):
-                for iCh, channel in enumerate(channels[slot]):
-                    print("i",i)
-                    print("slot",slot)
-                    print("iCh",iCh)
-                    print("channel",channel)
-                    hvApp = ptCorr(temperature, pressure, float(effHV[slot][iCh+(i*len(channels[slot]))]))
-                    hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
-                        
-                    hvMon = hvModule.getParameter(handle,slots[slot],b"VMon",channel)
-                    iMon = hvModule.getParameter(handle,slots[slot],b"IMon",channel)
-                    hvSet = hvModule.getParameter(handle,slots[slot],b"V0Set",channel)
-                        
-                    hHVeff[globalIndex].Fill(float(effHV[slot][iCh+(i*len(channels[slot]))]))
-                    hHVmon[globalIndex].Fill(hvMon)
-                    hImon[globalIndex].Fill(iMon)
-                    hHVapp[globalIndex].Fill(hvSet)
-                    print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
-                    globalIndex = globalIndex+1
+        hTemp.Fill(lastEnv[0][1]) #Fill temperature histo
+        hPress.Fill(lastEnv[0][2]) #Fill pressure histo
+        #hHumi.Fill(lastEnv[0][3]) #Fill humidity histo
+        #hFlow.Fill(lastEnv[0][4]) #Fill flow histo
+        
+        for slot in range(len(slots)):
+            for iCh, channel in enumerate(channels[slot]):
+                print("i",i)
+                print("slot",slot)
+                print("iCh",iCh)
+                print("channel",channel)
+                hvApp = ptCorr(temperature, pressure, float(effHV[slot][iCh+(i*len(channels[slot]))]))
+                hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
+                    
+                hvMon = hvModule.getParameter(handle,slots[slot],b"VMon",channel)
+                iMon = hvModule.getParameter(handle,slots[slot],b"IMon",channel)
+                hvSet = hvModule.getParameter(handle,slots[slot],b"V0Set",channel)
+                    
+                hHVeff[globalIndex].Fill(float(effHV[slot][iCh+(i*len(channels[slot]))]))
+                hHVmon[globalIndex].Fill(hvMon)
+                hImon[globalIndex].Fill(iMon)
+                hHVapp[globalIndex].Fill(hvSet)
+                print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
+                globalIndex = globalIndex+1
 
 #Write oscilloscope data
 def writeScope(scope,waveOut,channels): #scope = oscilloscope object, waveOut = output .txt file
@@ -138,7 +138,7 @@ def writeScope(scope,waveOut,channels): #scope = oscilloscope object, waveOut = 
 #Check if channels are ramping up/down
 def getStatus(hvModule,handle,totChannels,slots,channels):
     status = [-1] * totChannels
-    print(status)
+    #print(status)
     ramping = False
 
     chStatus = 0
@@ -147,7 +147,7 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
             status[chStatus] = hvModule.getParameter(handle,slots[slot],b"Status",channel)
             chStatus = chStatus+1
 
-    print(status)
+    #print(status)
 
     if status.count(1) != totChannels:
         ramping = True
@@ -164,7 +164,7 @@ def main():
 
     print("---Efficiency scan starting---")
 
-    secrets = dotenv_values("/home/pcald32/labStrada/.env")
+    secrets = dotenv_values("/home/pcald32/labStrada/.env") #load passwords and db data
 
     arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type, #3 = comments, #4 = HV to set at the end of the scan)
     
@@ -288,6 +288,8 @@ def main():
     for tdc in range(len(BA)):
         TDCs.append(TDC(BA[tdc],lowTh[tdc],highTh[tdc],window[tdc],enablech[tdc],IRQ[tdc]))
     
+    time.sleep(1)
+    
     #Connect to CAEN HV module
     handle = hvModule.connect()
     for slot in range(len(slots)):
@@ -300,7 +302,7 @@ def main():
     # Setup oscilloscope #
     #                    #
     ######################
-    useScope = False #If True -> use oscilloscope, go into the setup
+    useScope = False #If True -> use oscilloscope, set it up here
     if useScope:
         channels = [1,2,3,4] #List of active channels
         scope = TeledyneLeCroyPy.LeCroyWaveRunner('VICP::90.147.203.158') #Connect to scoper via TCP/IP
@@ -321,6 +323,7 @@ def main():
     caenOut = "scan_"+str(newRun)+"_CAEN_"
     daqOut = "scan_"+str(newRun)+"_DAQ_"
     waveOut = "scan_"+str(newRun)+"_WAVE_"
+
 
     ################################
     #                              #
@@ -429,10 +432,10 @@ def main():
         #                                                                               #
         #################################################################################
         hvCorrProc = Process(target=applyPTCorr, args=[mydb,mycursor,hTemp,hPress,hHumi,hFlow,
-                                                       hvModule,handle,slots,channels,hHVeff,
-                                                       hHVapp,hHVmon,hImon,effHV])
-        
-        writeScopeProc = Process(target=writeScope,args=[scope,waveOut,channels])
+                                                    hvModule,handle,slots,channels,hHVeff,
+                                                    hHVapp,hHVmon,hImon,effHV,i])
+        if useScope:
+            writeScopeProc = Process(target=writeScope,args=[scope,waveOut,channels])
 
         #First ramp up/down of voltage at the start of the scan
         #Get last PT values to apply initial correction to HV
@@ -501,6 +504,10 @@ def main():
         #and once it reaches the limit it is automatically reset, every 1000 triggers this variable is increased
         #by 1000 to keep track of how many 1000 triggers we got
         contaMille = 0
+        
+        #PT correction every 30 seconds, executed in parallel to the rest of the code
+        #started here because in the while loop it was giving an error
+        hvCorrProc.start()
 
         if hex(VMEbridge.checkIRQ(handle)) == hex(0x0):
             waitingIRQ = True
@@ -508,8 +515,7 @@ def main():
     
         while waitingIRQ:
 
-            #PT correction every 30 seconds, executed in parallel to the rest of the code
-            hvCorrProc.start()
+            #hvCorrProc.start()
             """
             if time.perf_counter() - start > 30: #more than 30 seconds since last measurement
                 VMEbridge.startPulser(handle,0) #start pulser (veto) during PT correction
@@ -602,6 +608,8 @@ def main():
                         hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                         ch=ch+1
                 #fOutCAEN.Close()
+
+                hvCorrProc.kill() #Stop PT correction process when changing from one HV point to the other
 
                 fOutDIP.cd()
                 hTemp.Write("Temperature_HV_"+str(i+1))
@@ -718,6 +726,8 @@ def main():
                                     hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                                     ch=ch+1
                             #fOutCAEN.Close()
+
+                            hvCorrProc.kill() #Stop PT correction process when changing from one HV point to the other
 
                             fOutDIP.cd()
                             hTemp.Write("Temperature_HV_"+str(i+1))
