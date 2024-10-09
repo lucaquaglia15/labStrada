@@ -52,8 +52,19 @@ def getPT(mycursor):
 #do this in parallel with the rest of the DAQ
 def applyPTCorr(mydb,mycursor,hTemp,hPress,hHumi,hFlow,hvModule,handle,slots,channels,
                 hHVeff,hHVapp,hHVmon,hImon,effHV,i):
+    
     while True:
-        time.sleep(30)
+        mydb.connect()
+        
+        print("\n HV correction process in parallel \n")
+        print("Memory address of hTemp in pt corr function: ", id(hTemp))
+        print("Memory address of hPress in pt corr function: ", id(hPress))
+        print("Memory address of hHumi in pt corr function: ", id(hHumi))
+        print("Memory address of hFlow in pt corr function: ", id(hFlow))
+        print("Memory address of hHVeff in pt corr function: ", id(hHVeff))
+        print("Memory address of hHVapp in pt corr function: ", id(hHVapp))
+        print("Memory address of hHVmon in pt corr function: ", id(hHVmon))
+        print("Memory address of hImon in pt corr function: ", id(hImon))
 
         mydb.cmd_refresh(1) #refresh db to get last entry
             
@@ -104,6 +115,10 @@ def applyPTCorr(mydb,mycursor,hTemp,hPress,hHumi,hFlow,hvModule,handle,slots,cha
                 hHVapp[globalIndex].Fill(hvSet)
                 print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
                 globalIndex = globalIndex+1
+        
+        mydb.close()
+        
+        time.sleep(10)
 
 #Write oscilloscope data
 def writeScope(scope,waveOut,channels): #scope = oscilloscope object, waveOut = output .txt file
@@ -431,6 +446,15 @@ def main():
         # Define process for HV correction and scope writing to be exectued in parallel #
         #                                                                               #
         #################################################################################
+        print("Memory address of hTemp in main: ", id(hTemp))
+        print("Memory address of hPress in main: ", id(hPress))
+        print("Memory address of hHumi in main: ", id(hHumi))
+        print("Memory address of hFlow in main: ", id(hFlow))
+        print("Memory address of hHVeff in main: ", id(hHVeff))
+        print("Memory address of hHVapp in main: ", id(hHVapp))
+        print("Memory address of hHVmon in main: ", id(hHVmon))
+        print("Memory address of hImon in main: ", id(hImon))
+
         hvCorrProc = Process(target=applyPTCorr, args=[mydb,mycursor,hTemp,hPress,hHumi,hFlow,
                                                     hvModule,handle,slots,channels,hHVeff,
                                                     hHVapp,hHVmon,hImon,effHV,i])
@@ -508,6 +532,7 @@ def main():
         #PT correction every 30 seconds, executed in parallel to the rest of the code
         #started here because in the while loop it was giving an error
         hvCorrProc.start()
+        mydb.connect()
 
         if hex(VMEbridge.checkIRQ(handle)) == hex(0x0):
             waitingIRQ = True
@@ -590,13 +615,8 @@ def main():
                 
                 os.chdir(scanFol)
 
-                #fOutDIP = ROOT.TFile(dipOut,"RECREATE")
-                #fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
-                #fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
-                
                 fOutDAQ.cd()
                 treeDAQ.Write()
-                 #fOutDAQ.Close()
 
                 fOutCAEN.cd()
                 ch = 0
@@ -607,19 +627,14 @@ def main():
                         hHVmon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_mon_"+str(i+1))
                         hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                         ch=ch+1
-                #fOutCAEN.Close()
 
-                hvCorrProc.kill() #Stop PT correction process when changing from one HV point to the other
+                hvCorrProc.terminate() #Stop PT correction process when changing from one HV point to the other
 
                 fOutDIP.cd()
                 hTemp.Write("Temperature_HV_"+str(i+1))
                 hPress.Write("Pressure_HV_"+str(i+1))
                 hHumi.Write("Humidity_HV_"+str(i+1))
                 hFlow.Write("Flow_HV_"+str(i+1))
-                
-                #fOutDAQ.Close()
-                #fOutCAEN.Close()
-                #fOutDIP.Close()
 
                 os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
                 
@@ -640,7 +655,8 @@ def main():
 
                 #Send veto signal while IRQ is still active (TDC) 
                 #And data is being written by the oscilloscope (this could be slow so we prefer to wait)
-                while IRQlevel != hex(0x0) and writeScopeProc.is_alive():
+                while IRQlevel != hex(0x0): 
+                #while IRQlevel != hex(0x0) and writeScopeProc.is_alive():
                     #VMEbridge.disableIRQ(handle,111)
 
                     VMEbridge.startPulser(handle,0)
@@ -708,13 +724,8 @@ def main():
                             print("Numero di trigger calcolati, case 2: ",contaMille + int(VMEbridge.readRegister(handle,0x1D)))
                             os.chdir(scanFol)
 
-                            #fOutDIP = ROOT.TFile(dipOut,"RECREATE")
-                            #fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
-                            #fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
-                            
                             fOutDAQ.cd()
                             treeDAQ.Write()
-                            #fOutDAQ.Close()
 
                             fOutCAEN.cd()
                             ch = 0
@@ -725,18 +736,14 @@ def main():
                                     hHVmon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_mon_"+str(i+1))
                                     hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                                     ch=ch+1
-                            #fOutCAEN.Close()
 
-                            hvCorrProc.kill() #Stop PT correction process when changing from one HV point to the other
+                            hvCorrProc.terminate() #Stop PT correction process when changing from one HV point to the other
 
                             fOutDIP.cd()
                             hTemp.Write("Temperature_HV_"+str(i+1))
                             hPress.Write("Pressure_HV_"+str(i+1))
                             hHumi.Write("Humidity_HV_"+str(i+1))
                             hFlow.Write("Flow_HV_"+str(i+1))
-                            #fOutDAQ.Close()
-                            #fOutCAEN.Close()
-                            #fOutDIP.Close()
 
                             os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
                             break
