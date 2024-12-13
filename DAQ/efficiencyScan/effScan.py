@@ -39,7 +39,6 @@ def ptCorr(temp, press, hvEff):
 
 #Get last temp, press and humi from db
 def getPT(mycursor):
-    #getLastEnv = ("SELECT date, temperature, pressure, humidity FROM envPar ORDER BY date DESC LIMIT 1")
     getLastEnv = ("SELECT date, temperature, pressure FROM envPar ORDER BY date DESC LIMIT 1")
     mycursor.execute(getLastEnv)
 
@@ -109,6 +108,7 @@ def main():
         os.makedirs(newPath)
     
     #Define arrays to fill for tree branches
+    nTriggers = array.array( 'l',[ 0 ]) #Variable to hold the actual number of triggers
     size = array.array( 'l', [ 0 ] )
     aChannels = array.array('i')
     aTimes = array.array('f')
@@ -116,7 +116,7 @@ def main():
     print("Getting configuration file for V488A TDC")
     
     #Get values from constants.py
-    effHV = constants.effHV #effective high voltage values
+    effHV = constants.effHV #Effective high voltage values
     slots = []
     slots = constants.slot #HV module slots
     channels = []
@@ -192,7 +192,7 @@ def main():
     print("Connecting to CAEN HV module")
     hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
  
-    TDCs = [] #empty list to define one TDC object for every TDC used in the DAQ
+    TDCs = [] #Empty list to define one TDC object for every TDC used in the DAQ
     
     for tdc in range(len(BA)):
         TDCs.append(TDC(BA[tdc],lowTh[tdc],highTh[tdc],window[tdc],enablech[tdc],IRQ[tdc]))
@@ -215,6 +215,7 @@ def main():
 
         #Create TTree to save DAQ data
         treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
+        #treeDAQ.Branch('nTriggers',nTriggers,'nTriggers/I')
         treeDAQ.Branch('size', size, 'size/I')
         treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
         treeDAQ.Branch("times",aTimes,'times[size]/F')
@@ -367,6 +368,9 @@ def main():
         #by 1000 to keep track of how many 1000 triggers we got
         contaMille = 0
 
+        #Bool needed to keep track if the number of triggers has been reached while processing an event
+        finishedScan = False
+
         if hex(VMEbridge.checkIRQ(handle)) == hex(0x0):
             waitingIRQ = True
             print("Waiting for IRQ")
@@ -429,7 +433,7 @@ def main():
 
                 VMEbridge.stopPulser(handle,0)
 
-            #1000 triggers in the VME scaler -> increase contaMille
+            #1000 triggers in the VME scaler -> increase contaMille and reset internal counter
             if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
                 #print("\n Increasing contaMille:\n")
                 #print("Counts before: ", VMEbridge.readRegister(handle,0x1D))
@@ -445,14 +449,14 @@ def main():
                 print("Numero di trigger calcolati, case 1: ",contaMille + int(VMEbridge.readRegister(handle,0x1D)))
                 
                 os.chdir(scanFol)
-
-                #fOutDIP = ROOT.TFile(dipOut,"RECREATE")
-                #fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
-                #fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
                 
                 fOutDAQ.cd()
+                #nTrg = treeDAQ.Branch('nTriggers',nTriggers,'nTriggers/I')
+                #nTriggers[0] = contaMille + VMEbridge.readRegister(handle,0x1D)
+                #treeDAQ.SetBranchAddress('nTriggers',nTriggers)
+                #nTrg.Fill()
+                #treeDAQ.Fill()
                 treeDAQ.Write()
-                 #fOutDAQ.Close()
 
                 fOutCAEN.cd()
                 ch = 0
@@ -463,7 +467,6 @@ def main():
                         hHVmon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_mon_"+str(i+1))
                         hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                         ch=ch+1
-                #fOutCAEN.Close()
 
                 fOutDIP.cd()
                 hTemp.Write("Temperature_HV_"+str(i+1))
@@ -471,10 +474,6 @@ def main():
                 hHumi.Write("Humidity_HV_"+str(i+1))
                 hFlow.Write("Flow_HV_"+str(i+1))
                 
-                #fOutDAQ.Close()
-                #fOutCAEN.Close()
-                #fOutDIP.Close()
-
                 os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
                 
                 break
@@ -551,14 +550,13 @@ def main():
                             print("Numero di trigger impostati, case 2: ",int(hex(trigNum[i]),16))
                             print("Numero di trigger calcolati, case 2: ",contaMille + int(VMEbridge.readRegister(handle,0x1D)))
                             os.chdir(scanFol)
-
-                            #fOutDIP = ROOT.TFile(dipOut,"RECREATE")
-                            #fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
-                            #fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
                             
                             fOutDAQ.cd()
+                            #nTriggers[0] = contaMille + VMEbridge.readRegister(handle,0x1D)
+                            #treeDAQ.SetBranchAddress('nTriggers',nTriggers)
+                            #nTrg.Fill()
+                            #treeDAQ.Fill()
                             treeDAQ.Write()
-                            #fOutDAQ.Close()
 
                             fOutCAEN.cd()
                             ch = 0
@@ -569,26 +567,26 @@ def main():
                                     hHVmon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_HV_mon_"+str(i+1))
                                     hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                                     ch=ch+1
-                            #fOutCAEN.Close()
 
                             fOutDIP.cd()
                             hTemp.Write("Temperature_HV_"+str(i+1))
                             hPress.Write("Pressure_HV_"+str(i+1))
                             hHumi.Write("Humidity_HV_"+str(i+1))
                             hFlow.Write("Flow_HV_"+str(i+1))
-                            #fOutDAQ.Close()
-                            #fOutCAEN.Close()
-                            #fOutDIP.Close()
 
                             os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
-                            break
+                            finishedScan = True
 
                         VMEbridge.enableIRQ(handle,111)
                         #event.clear()
-                        time.sleep(1)
+                        time.sleep(1)                            
+            
+            #check if number of triggers has reached the desired value and the last 
+            #trigger was processed by the DAQ            
+            if finishedScan:
+                finishedScan = False
+                break
 
-                    #exit from wait for IRQ loop
-                    #break
 
         #Reset names and increase HV point counter
         dipOut = "scan_"+str(newRun)+"_DIP_"
