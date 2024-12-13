@@ -12,3 +12,4 @@ analysis/humidityTest/saveTempPress.py
 DAQ/currentScan/constants.py
 DAQ/efficiencyScan/constants.py
 monitoring/python/constants.py
+*.xlsx#
