@@ -108,7 +108,6 @@ def main():
         os.makedirs(newPath)
     
     #Define arrays to fill for tree branches
-    nTriggers = array.array( 'l',[ 0 ]) #Variable to hold the actual number of triggers
     size = array.array( 'l', [ 0 ] )
     aChannels = array.array('i')
     aTimes = array.array('f')
@@ -215,7 +214,6 @@ def main():
 
         #Create TTree to save DAQ data
         treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
-        #treeDAQ.Branch('nTriggers',nTriggers,'nTriggers/I')
         treeDAQ.Branch('size', size, 'size/I')
         treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
         treeDAQ.Branch("times",aTimes,'times[size]/F')
@@ -451,11 +449,8 @@ def main():
                 os.chdir(scanFol)
                 
                 fOutDAQ.cd()
-                #nTrg = treeDAQ.Branch('nTriggers',nTriggers,'nTriggers/I')
-                #nTriggers[0] = contaMille + VMEbridge.readRegister(handle,0x1D)
-                #treeDAQ.SetBranchAddress('nTriggers',nTriggers)
-                #nTrg.Fill()
-                #treeDAQ.Fill()
+                nTriggers = ROOT.TParameter(float)("numTriggers",contaMille + VMEbridge.readRegister(handle,0x1D))
+                nTriggers.Write()
                 treeDAQ.Write()
 
                 fOutCAEN.cd()
@@ -552,10 +547,8 @@ def main():
                             os.chdir(scanFol)
                             
                             fOutDAQ.cd()
-                            #nTriggers[0] = contaMille + VMEbridge.readRegister(handle,0x1D)
-                            #treeDAQ.SetBranchAddress('nTriggers',nTriggers)
-                            #nTrg.Fill()
-                            #treeDAQ.Fill()
+                            nTriggers = ROOT.TParameter(float)("numTriggers",contaMille + VMEbridge.readRegister(handle,0x1D))
+                            nTriggers.Write()
                             treeDAQ.Write()
 
                             fOutCAEN.cd()
