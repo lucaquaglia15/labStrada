@@ -227,15 +227,23 @@ def main():
         #Configure TDCs
         print("\n configuring TDCs \n")
 
-        for tdc in range(len(BA)):
+        for tdc in range(len(BA)): #Sleep 1 second between each command
             TDCs[tdc].resetModule(VMEbridge,handle)
+            time.sleep(1)
             TDCs[tdc].setLowThr(VMEbridge,handle)
+            time.sleep(1)
             TDCs[tdc].setHighThr(VMEbridge,handle)
+            time.sleep(1)
             TDCs[tdc].setTimeWindow(VMEbridge,handle)
+            time.sleep(1)
             TDCs[tdc].accessIRQregister(VMEbridge,handle,1)
+            time.sleep(1)
             TDCs[tdc].accessIRQregister(VMEbridge,handle,0)
+            time.sleep(1)
             TDCs[tdc].accessControlRegister(VMEbridge,handle,1)
+            time.sleep(1)
             TDCs[tdc].accessControlRegister(VMEbridge,handle,0)
+            time.sleep(1)
 
         print("\n Configuration done, starting scan \n")
         VMEbridge.resetScalerCount(handle)
@@ -470,6 +478,8 @@ def main():
                 hFlow.Write("Flow_HV_"+str(i+1))
                 
                 os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
+
+                VMEbridge.startPulser(handle,0)
                 
                 break
         
@@ -577,6 +587,7 @@ def main():
             #check if number of triggers has reached the desired value and the last 
             #trigger was processed by the DAQ            
             if finishedScan:
+                VMEbridge.startPulser(handle,0)
                 finishedScan = False
                 break
 
