@@ -71,7 +71,7 @@ def main():
                         mydb.commit() #execute query
                         
             alive = alive+1
-            time.sleep(15)
+            time.sleep(10)
 
         except KeyboardInterrupt as e:
             hvModule.disconnect(handle)    
