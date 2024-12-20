@@ -114,7 +114,7 @@ class CAEN:
 
 		ret5 = pyCAENgetChParam(handle,cSlot,cParamName,1,ctypes.pointer(cChannel),ctypes.pointer(param))
 
-		print(paramName, param[0], "res ", ret5)
+		#print(paramName, param[0], "res ", ret5)
 
 		return param[0]
 
