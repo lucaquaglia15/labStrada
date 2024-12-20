@@ -7,13 +7,13 @@ from dotenv import dotenv_values
 
 #Define polynomial for conversion from mV to flow
 #coeff = 0.57
-p = np.poly1d([3.09333, -7.05143, 5.9581, 0.500571])
+#p = np.poly1d([3.09333, -7.05143, 5.9581, 0.500571])
 
 #Communicate with arduino
 ports = serial.tools.list_ports.comports() #returns a list of all com ports
 serialInst = serial.Serial() #create instance of serial port
 
-portVar = "/dev/ttyUSB0" #we know the arduino is on COM4 port
+portVar = "/dev/ttyUSB0" #we know the arduino is on ttyUSB0 port
 serialInst.baudrate = 9600 #boud rate of arduino
 serialInst.port = portVar #set port
 serialInst.open() #open serial port communication port
@@ -45,16 +45,17 @@ while True: #infinte loop to listen to data from arduino and post it to db
         #temperature sensor
         print("Temperature = " + str(split_data[0]) + " °C")
         print("Pressure = " + str(split_data[1]) + " mbar")
-        print("Humidity = " + str(split_data[3]) + " %")
+        print("Humidity = " + str(split_data[2]) + " %")
 
         #val = (split_data[0],split_data[1]) #without humidity
-        val = (split_data[0],split_data[1],split_data[3]) #w humi
+        val = (split_data[0],split_data[1],split_data[2]) #w humi
         #sql = "INSERT INTO envPar (temperature, pressure) VALUES (%s, %s)" #sql query without humidity
         sql = "INSERT INTO envPar (temperature, pressure, humidity) VALUES (%s, %s, %s)" #sql query w humidity
         mycursor.execute(sql, val)
 
         mydb.commit() #execute query
 
+        """
         #Flow sensor
         #print("V reading = " + str(split_data[3]) + " V")
         print("V reading = " + str(split_data[2]) + " V")
@@ -74,17 +75,14 @@ while True: #infinte loop to listen to data from arduino and post it to db
               airFlow = float(x)*60
         realFlow = airFlow/3.33
 
-        #print(voltage)
-        #print(airFlow)
-        #print(realFlow)
-
         val = (voltage,airFlow,realFlow)
         sql = "INSERT INTO flow (voltage, airFlow, realFlow) VALUES (%s, %s, %s)" #sql query
         mycursor.execute(sql, val)
         
         mydb.commit() #execute query
+        """
 
         print(mycursor.rowcount, "record inserted.") #succesful print out
         
         counter += 1
-        p[0] = 0.500571
+        #p[0] = 0.500571
