@@ -1,3 +1,4 @@
+#import constants #constants
 from ast import arg
 from typing import NewType
 from VME import VME #Python version of CAEN HV wrapper library
@@ -5,7 +6,6 @@ from TDC import TDC #Functions specific to the V488A TDC module
 import numpy as np #numpy
 import ctypes #for C++ function binding (CAEN HV library for example)
 import pathlib #for library paths (to use C++ libraries in python)
-import pandas
 import mysql.connector #to connect to db to send the data
 import ROOT #Root CERN functions
 import time #For functions such as sleep
@@ -13,9 +13,8 @@ from datetime import datetime #To get date, time and perform operations on them
 import os #To create new folders and so on
 import sys #To perform system operation
 import array
-import constants #Constant parameters for run configuration
-import TeledyneLeCroyPy #Control oscilloscope
-from multiprocessing import Process #To parallelize processes (PT corr mainly)
+import constants
+import TeledyneLeCroyPy
 from dotenv import dotenv_values
 sys.path.insert(0, '/home/pcald32/labStrada/DAQ/currentScan') #import CAEN.py file from currentScan folder
 from CAEN import CAEN
@@ -41,119 +40,16 @@ def ptCorr(temp, press, hvEff):
 
 #Get last temp, press and humi from db
 def getPT(mycursor):
-    #getLastEnv = ("SELECT date, temperature, pressure, humidity FROM envPar ORDER BY date DESC LIMIT 1")
     getLastEnv = ("SELECT date, temperature, pressure FROM envPar ORDER BY date DESC LIMIT 1")
     mycursor.execute(getLastEnv)
 
     lastEnv = mycursor.fetchall()
     return lastEnv
 
-#Function to apply the PT correction and write the data to the root file
-#do this in parallel with the rest of the DAQ
-def applyPTCorr(mydb,mycursor,hTemp,hPress,hHumi,hFlow,hvModule,handle,slots,channels,
-                hHVeff,hHVapp,hHVmon,hImon,effHV,i):
-    
-    while True:
-        mydb.connect()
-        
-        print("\n HV correction process in parallel \n")
-        print("Memory address of hTemp in pt corr function: ", id(hTemp))
-        print("Memory address of hPress in pt corr function: ", id(hPress))
-        print("Memory address of hHumi in pt corr function: ", id(hHumi))
-        print("Memory address of hFlow in pt corr function: ", id(hFlow))
-        print("Memory address of hHVeff in pt corr function: ", id(hHVeff))
-        print("Memory address of hHVapp in pt corr function: ", id(hHVapp))
-        print("Memory address of hHVmon in pt corr function: ", id(hHVmon))
-        print("Memory address of hImon in pt corr function: ", id(hImon))
-
-        mydb.cmd_refresh(1) #refresh db to get last entry
-            
-        globalIndex = 0
-            
-        lastEnv = getPT(mycursor)
-        lastDate = lastEnv[0][0]
-        delta = (datetime.now() - lastDate).total_seconds() #Calculate difference between now and last measurement in the db
-
-        while delta > 1200:
-            t_end = t_end + 3 #this is needed because the way to measure residual time is to compute t_end before the start of measuring time
-                    #but even if the PT logging is stopped, the time still passes. In this way we extend the end of run by 3 seconds, which is the waiting
-                    #time at the end of (while delta > 1200). This is precise to ~0.1 s, it can be improved by measuring how long the loop is but for the moment
-                    #it is good enough
-            mydb.cmd_refresh(1)
-            lastEnv = getPT(mycursor)
-            lastDate = lastEnv[0][0]
-            delta = (datetime.now() - lastDate).total_seconds()
-            print("PT logging stopped more than 10 minutes ago!")
-            print("Last PT saved is at:",str(lastDate))
-            print("Pausing current scan until PT resumes")  
-            time.sleep(3)
-
-        temperature = lastEnv[0][1]+273.15
-        pressure = lastEnv[0][2]
-
-        hTemp.Fill(lastEnv[0][1]) #Fill temperature histo
-        hPress.Fill(lastEnv[0][2]) #Fill pressure histo
-        #hHumi.Fill(lastEnv[0][3]) #Fill humidity histo
-        #hFlow.Fill(lastEnv[0][4]) #Fill flow histo
-        
-        for slot in range(len(slots)):
-            for iCh, channel in enumerate(channels[slot]):
-                print("i",i)
-                print("slot",slot)
-                print("iCh",iCh)
-                print("channel",channel)
-                hvApp = ptCorr(temperature, pressure, float(effHV[slot][iCh+(i*len(channels[slot]))]))
-                hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
-                    
-                hvMon = hvModule.getParameter(handle,slots[slot],b"VMon",channel)
-                iMon = hvModule.getParameter(handle,slots[slot],b"IMon",channel)
-                hvSet = hvModule.getParameter(handle,slots[slot],b"V0Set",channel)
-                    
-                hHVeff[globalIndex].Fill(float(effHV[slot][iCh+(i*len(channels[slot]))]))
-                hHVmon[globalIndex].Fill(hvMon)
-                hImon[globalIndex].Fill(iMon)
-                hHVapp[globalIndex].Fill(hvSet)
-                print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
-                globalIndex = globalIndex+1
-        
-        mydb.close()
-        
-        time.sleep(10)
-
-#Write oscilloscope data
-def writeScope(scope,waveOut,channels): #scope = oscilloscope object, waveOut = output .txt file
-                                        #channels = list of active channels (defined in main functuon)
-    scope.wait_for_single_trigger() #Wait for a trigger, it will be delayed accordingly 
-                                    #(Accordingly = more than for the TDC modules, to allow for IRQ creation)
-                                    #To be checked
-    data = {} #Dictionary
-    
-    for n_channel in channels: #Loop to get the data from active channels
-        data[n_channel] = scope.get_waveform(n_channel=n_channel)
-
-    wf = []
-    for n_channel in data:
-        for i,_ in enumerate(data[n_channel]['waveforms']):
-            df = pandas.DataFrame(_)
-            df['n_segment'] = i
-            df['n_channel'] = n_channel
-            wf.append(df)
-    
-    #wf = pandas.concat(wf) #original
-    wf = pandas.concat(wf, axis=1) #In theory this should concatenate the dataframes according to the initial "axis"
-                                   #which is the common timebase to all channels, as reported in:
-                                   #https://www.geeksforgeeks.org/pandas-concat-function-in-python/ but it has to be
-                                   #checked with the data
-    #Write trigger number and df to output .txt file
-    wf.to_csv(waveOut, sep='\t', index=False) #write event
-    waveOut.write("\n") #New line at the end of the event
-    waveOut.flush() #Write out to the txt file
-
-
 #Check if channels are ramping up/down
 def getStatus(hvModule,handle,totChannels,slots,channels):
     status = [-1] * totChannels
-    #print(status)
+    print(status)
     ramping = False
 
     chStatus = 0
@@ -162,7 +58,7 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
             status[chStatus] = hvModule.getParameter(handle,slots[slot],b"Status",channel)
             chStatus = chStatus+1
 
-    #print(status)
+    print(status)
 
     if status.count(1) != totChannels:
         ramping = True
@@ -172,14 +68,14 @@ def getStatus(hvModule,handle,totChannels,slots,channels):
 
     return ramping
 
-#main function for efficiency scan
+#main function for current scan
 debug = False
 
 def main():
 
     print("---Efficiency scan starting---")
 
-    secrets = dotenv_values("/home/pcald32/labStrada/.env") #load passwords and db data
+    secrets = dotenv_values("/home/pcald32/labStrada/.env")
 
     arguments = sys.argv  #Get command line arguments (#0 =  mixture, #1 = scan type, #3 = comments, #4 = HV to set at the end of the scan)
     
@@ -193,7 +89,6 @@ def main():
         password=secrets["password"],
         database=secrets["database"]
     )
-
     mycursor = mydb.cursor()
     
     getLastRun = ("SELECT runNumber FROM efficiencyScan ORDER BY date DESC LIMIT 1")
@@ -214,7 +109,6 @@ def main():
         os.makedirs(newPath)
     
     #Define arrays to fill for tree branches
-    eventNumber = array.array( 'l', [ 0 ] )
     size = array.array( 'l', [ 0 ] )
     aChannels = array.array('i')
     aTimes = array.array('f')
@@ -222,7 +116,7 @@ def main():
     print("Getting configuration file for V488A TDC")
     
     #Get values from constants.py
-    effHV = constants.effHV #effective high voltage values
+    effHV = constants.effHV #Effective high voltage values
     slots = []
     slots = constants.slot #HV module slots
     channels = []
@@ -298,60 +192,46 @@ def main():
     print("Connecting to CAEN HV module")
     hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
  
-    TDCs = [] #empty list to define one TDC object for every TDC used in the DAQ
+    TDCs = [] #Empty list to define one TDC object for every TDC used in the DAQ
     
     for tdc in range(len(BA)):
         TDCs.append(TDC(BA[tdc],lowTh[tdc],highTh[tdc],window[tdc],enablech[tdc],IRQ[tdc]))
-    
-    time.sleep(1)
     
     #Connect to CAEN HV module
     handle = hvModule.connect()
     for slot in range(len(slots)):
         for iCh, channel in enumerate(channels[slot]):
-            hvModule.setParameter(handle,slots[slot],b"Pw",channel,1) #switch ON HV channel
-            hvModule.setChName(handle,slots[slot],channel,chName[slot][iCh]) #Set name as defined in config file
+            hvModule.setParameter(handle,slots[slot],b"Pw",channel,1)
+            hvModule.setChName(handle,slots[slot],channel,chName[slot][iCh])
 
-    ######################
-    #                    #
-    # Setup oscilloscope #
-    #                    #
-    ######################
-    useScope = False #If True -> use oscilloscope, set it up here
-    if useScope:
-        channels = [1,2,3,4] #List of active channels
-        scope = TeledyneLeCroyPy.LeCroyWaveRunner('VICP::90.147.203.158') #Connect to scoper via TCP/IP
-        scope.set_tdiv('20NS') #Set time base division of the scope
-        
-        for i in channels:
-            scope.set_vdiv(i,0.5) #Set amplitude of all channels (1V peak to peak)
-        #scope.set_vdiv(1,0.5) #Amplitude in volts channel 1 (1V peak to peak)
-        #scope.set_vdiv(2,0.5) #Amplitude in volts channel 2 (1V peak to peak)
-        #scope.set_vdiv(3,0.5) #Amplitude in volts channel 3 (1V peak to peak)
-        #scope.set_vdiv(4,0.5) #Amplitude in volts channel 4 (1V peak to peak)
-        scope.set_trig_mode('Ext') #External trigger
-        scope.set_trig_level('Ext',-0.5) #-0.5 V -> for NIM signal (-0.9 V)
-        scope.set_trig_slope('Negative') #Falling edge for NIM signal
-
-    #Define general filename for DIP + CAEN + DAQ .root and WAVE.txt (oscilloscope data) output file
+    #Define general filename for .root output file
     dipOut = "scan_"+str(newRun)+"_DIP_"
     caenOut = "scan_"+str(newRun)+"_CAEN_"
     daqOut = "scan_"+str(newRun)+"_DAQ_"
-    waveOut = "scan_"+str(newRun)+"_WAVE_"
+    scopeOut = "scan_"+str(newRun)+"_wave_"
 
+    #Connect to oscilloscope and setup the channels
+    scope = TeledyneLeCroyPy.LeCroyWaveRunner('VICP::90.147.203.158') #Connect to scoper via TCP/IP
+    print("Connection to ",scope.idn, "succesful") #TO do: add if in case connection is not succesful
+    scope.set_tdiv('20NS') #Set time base division of the scope
+    scope.set_vdiv(1,0.2) #amplitude in volts channel 1
+    scope.set_vdiv(2,0.2) #amplitude in volts channel 2
+    scope.set_vdiv(3,0.2) #amplitude in volts channel 3
+    scope.set_vdiv(4,0.2) #amplitude in volts channel 3
+    scope.set_voffset(1,0)
+    scope.set_trig_source("EXT") #trigger on external input
+    print("Oscilloscope setup succesful!")
+    #print(get_trig_level(scope,1),scope.get_trig_source())
+    #trgLevel = -100e-3
+    #scope.set_trig_level("C1",trgLevel)
+    #print(get_trig_level(scope,1))
 
-    ################################
-    #                              #
-    # Begin for cycle on HV points #
-    #                              #
-    ################################
+    #Begin for cycle on HV points
     for i in range(int(len(constants.measTime))):
-        
         print("Number of triggers: ",trigNum[i])
 
         #Create TTree to save DAQ data
         treeDAQ = ROOT.TTree("treeDAQ","Data from TDCs")
-        treeDAQ.Branch('eventNumber', eventNumber, 'eventNumber/I')
         treeDAQ.Branch('size', size, 'size/I')
         treeDAQ.Branch("channels",aChannels,'channels[size]/I') 
         treeDAQ.Branch("times",aTimes,'times[size]/F')
@@ -396,16 +276,15 @@ def main():
         #Go in the folder and create root files
         dipOut = dipOut+"HV"+str(i+1)+".root" 
         caenOut = caenOut+"HV"+str(i+1)+".root"
-        daqOut = daqOut+"HV"+str(i+1)+".root" 
-        waveOut = waveOut+"HV"+str(i+1)+".txt"
+        daqOut = daqOut+"HV"+str(i+1)+".root"
+        scopeOut = scopeOut+"HV"+str(i+1)+".txt"
 
         os.chdir(scanFol)
 
         fOutDIP = ROOT.TFile(dipOut,"RECREATE")
         fOutCAEN = ROOT.TFile(caenOut,"RECREATE")
         fOutDAQ = ROOT.TFile(daqOut,"RECREATE")
-        if useScope: #Create output .txt file for oscilloscope data
-            fOutWAVE = open(waveOut, mode="wt")
+        fOutScope = open(scopeOut, 'w')
 
         os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
 
@@ -441,27 +320,6 @@ def main():
         hFlow = ROOT.TH1F("Flow_HV"+str(i+1),"Flow_HV"+str(i+1),1000,0,1)
         hFlow.GetXaxis().SetCanExtend(True)
 
-        #################################################################################
-        #                                                                               #
-        # Define process for HV correction and scope writing to be exectued in parallel #
-        #                                                                               #
-        #################################################################################
-        print("Memory address of hTemp in main: ", id(hTemp))
-        print("Memory address of hPress in main: ", id(hPress))
-        print("Memory address of hHumi in main: ", id(hHumi))
-        print("Memory address of hFlow in main: ", id(hFlow))
-        print("Memory address of hHVeff in main: ", id(hHVeff))
-        print("Memory address of hHVapp in main: ", id(hHVapp))
-        print("Memory address of hHVmon in main: ", id(hHVmon))
-        print("Memory address of hImon in main: ", id(hImon))
-
-        hvCorrProc = Process(target=applyPTCorr, args=[mydb,mycursor,hTemp,hPress,hHumi,hFlow,
-                                                    hvModule,handle,slots,channels,hHVeff,
-                                                    hHVapp,hHVmon,hImon,effHV,i])
-        if useScope:
-            writeScopeProc = Process(target=writeScope,args=[scope,waveOut,channels])
-
-        #First ramp up/down of voltage at the start of the scan
         #Get last PT values to apply initial correction to HV
         mydb.cmd_refresh(1)
         lastEnv = getPT(mycursor)
@@ -511,7 +369,6 @@ def main():
 
         hvModule.disconnect(handle) #disconnect from mainframe during waiting time
 
-        #Sleep for duration of waiting time (connection with HV module is already closed here)
         print("Waiting for waiting time")
         print(constants.waitTime[i],"s")
         time.sleep(int(constants.waitTime[i]))
@@ -524,15 +381,13 @@ def main():
         VMEbridge.stopPulser(handle,0) #remove veto
         start = time.perf_counter() #start timer
     
-        #Since we use the bridge to count the number of triggers and it has only 10 bits (up to 1023)
+        #since we use the bridge to count the number of triggers and it has only 10 bits (up to 1023)
         #and once it reaches the limit it is automatically reset, every 1000 triggers this variable is increased
         #by 1000 to keep track of how many 1000 triggers we got
         contaMille = 0
-        
-        #PT correction every 30 seconds, executed in parallel to the rest of the code
-        #started here because in the while loop it was giving an error
-        hvCorrProc.start()
-        mydb.connect()
+
+        #Bool needed to keep track if the number of triggers has been reached while processing an event
+        finishedScan = False
 
         if hex(VMEbridge.checkIRQ(handle)) == hex(0x0):
             waitingIRQ = True
@@ -540,8 +395,7 @@ def main():
     
         while waitingIRQ:
 
-            #hvCorrProc.start()
-            """
+            #PT correction every 30 seconds
             if time.perf_counter() - start > 30: #more than 30 seconds since last measurement
                 VMEbridge.startPulser(handle,0) #start pulser (veto) during PT correction
                 start = time.perf_counter() #Update last time of correction
@@ -596,9 +450,8 @@ def main():
                         globalIndex = globalIndex+1
 
                 VMEbridge.stopPulser(handle,0)
-            """
 
-            #1000 triggers in the VME scaler -> increase contaMille
+            #1000 triggers in the VME scaler -> increase contaMille and reset internal counter
             if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
                 #print("\n Increasing contaMille:\n")
                 #print("Counts before: ", VMEbridge.readRegister(handle,0x1D))
@@ -614,8 +467,10 @@ def main():
                 print("Numero di trigger calcolati, case 1: ",contaMille + int(VMEbridge.readRegister(handle,0x1D)))
                 
                 os.chdir(scanFol)
-
+                
                 fOutDAQ.cd()
+                nTriggers = ROOT.TParameter(float)("numTriggers",contaMille + VMEbridge.readRegister(handle,0x1D))
+                nTriggers.Write()
                 treeDAQ.Write()
 
                 fOutCAEN.cd()
@@ -628,38 +483,40 @@ def main():
                         hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                         ch=ch+1
 
-                hvCorrProc.terminate() #Stop PT correction process when changing from one HV point to the other
-
                 fOutDIP.cd()
                 hTemp.Write("Temperature_HV_"+str(i+1))
                 hPress.Write("Pressure_HV_"+str(i+1))
                 hHumi.Write("Humidity_HV_"+str(i+1))
                 hFlow.Write("Flow_HV_"+str(i+1))
 
+                fOutScope.close()
+                
                 os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
+
+                VMEbridge.startPulser(handle,0)
                 
                 break
         
-            else: #We have an IRQ from one or more TDCs
+            else:
                 VMEbridge.stopPulser(handle,0)
                 IRQlevel = hex(VMEbridge.checkIRQ(handle))
                 event = []
 
-                #Event number taken from the bridge register to be saved in the tree
-                eventNumber[0] = contaMille + VMEbridge.readRegister(handle,0x1D) 
-                
-                #Write oscilloscope data (if the variable is true)
-                if useScope:
-                    waveOut.write(str(eventNumber[0])+"\n") #Write trigger number to the output .txt file
-                    writeScopeProc.start() #write function started in parallel
-
-                #Send veto signal while IRQ is still active (TDC) 
-                #And data is being written by the oscilloscope (this could be slow so we prefer to wait)
-                while IRQlevel != hex(0x0): 
-                #while IRQlevel != hex(0x0) and writeScopeProc.is_alive():
+                while IRQlevel != hex(0x0):
                     #VMEbridge.disableIRQ(handle,111)
 
                     VMEbridge.startPulser(handle,0)
+
+                    #process data in the scope
+                    fOutScope.write("trigger #" + str(contaMille + VMEbridge.readRegister(handle,0x1D)) + "\n")
+                    scope.wait_for_single_trigger()
+                    data = {}
+                    for n_channel in [2,3]:
+                        data[n_channel] = scope.get_waveform(n_channel=n_channel)
+                        fOutScope.write(str(data[n_channel]))
+                    fOutScope.write("\n")
+                    fOutScope.flush()
+
                     IRQvector = VMEbridge.iackCycle(handle,int(IRQlevel,16),0x01)
                     print("IRQ ricevuta")
                     print("IRQvector: ",IRQvector) 
@@ -693,7 +550,7 @@ def main():
                         lChannels,lTimes = map(list,zip(*event))
                         print(lChannels, lTimes)
                         
-                        size[0] = len(lChannels) #number of channels with a hit per event
+                        size[0] = len(lChannels)
                         
                         #Fill tree
                         for j in range(len(lChannels)):
@@ -723,8 +580,10 @@ def main():
                             print("Numero di trigger impostati, case 2: ",int(hex(trigNum[i]),16))
                             print("Numero di trigger calcolati, case 2: ",contaMille + int(VMEbridge.readRegister(handle,0x1D)))
                             os.chdir(scanFol)
-
+                            
                             fOutDAQ.cd()
+                            nTriggers = ROOT.TParameter(float)("numTriggers",contaMille + VMEbridge.readRegister(handle,0x1D))
+                            nTriggers.Write()
                             treeDAQ.Write()
 
                             fOutCAEN.cd()
@@ -737,28 +596,34 @@ def main():
                                     hImon[ch].Write(str(chName[slot][iCh].decode('utf-8'))+"_I_mon_"+str(i+1))
                                     ch=ch+1
 
-                            hvCorrProc.terminate() #Stop PT correction process when changing from one HV point to the other
-
                             fOutDIP.cd()
                             hTemp.Write("Temperature_HV_"+str(i+1))
                             hPress.Write("Pressure_HV_"+str(i+1))
                             hHumi.Write("Humidity_HV_"+str(i+1))
                             hFlow.Write("Flow_HV_"+str(i+1))
 
+                            fOutScope.close()
+
                             os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
-                            break
+                            finishedScan = True
 
                         VMEbridge.enableIRQ(handle,111)
                         #event.clear()
-                        time.sleep(1)
+                        time.sleep(1)                            
+            
+            #check if number of triggers has reached the desired value and the last 
+            #trigger was processed by the DAQ            
+            if finishedScan:
+                VMEbridge.startPulser(handle,0)
+                finishedScan = False
+                break
 
-                    #exit from wait for IRQ loop
-                    #break
 
         #Reset names and increase HV point counter
         dipOut = "scan_"+str(newRun)+"_DIP_"
         caenOut = "scan_"+str(newRun)+"_CAEN_"
         daqOut = "scan_"+str(newRun)+"_DAQ_"
+        scopeOut = "scan_"+str(newRun)+"_wave_"
 
         fOutDAQ.Close()
         fOutCAEN.Close()
