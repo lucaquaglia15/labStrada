@@ -2,7 +2,8 @@
 //  labStrada3.c
 //  
 //
-//  Created by Sara Garetti on 21/05/23.
+//  Created by Sara Garetti on 21/05/23
+//  Edited by Luca Quaglia in 2024
 //
 
 #include <stdio.h>
@@ -29,18 +30,174 @@
 #include "TList.h"
 #include <TString.h>
 #include <algorithm>
+#include "TParameter.h"
 #include <unordered_set>
+#include <filesystem> //to count the number of folders in each scan
 
 using namespace std;
 using namespace TMath;
 
 //Funzioni per fittare il time profile dei vari TDC
-TF1 *fitGausTDC1 = new TF1("fitGausTDC1","gaus(0)",0.,200.);
-TF1 *fitGausTDC2 = new TF1("fitGausTDC2","gaus(0)",0.,160.);
-TF1 *fitGausTDC3 = new TF1("fitGausTDC3","gaus(0)",0.,200.);
+//TF1 *fitGausTDC1 = new TF1("fitGausTDC1","gaus(0)",0.,200.);
+//TF1 *fitGausTDC2 = new TF1("fitGausTDC2","gaus(0)",0.,200.);
+//TF1 *fitGausTDC3 = new TF1("fitGausTDC3","gaus(0)",0.,200.);
 
-void labStrada3(){
+bool lowLevelDebug = false;
+bool middleLevelDebug = false;
+bool highLevelDebug = false;
 
+void labStrada3(const int scan, const string detectorName){
+
+    const int MAX_SIZE = 24; //maximum number of channels (3 TDCs, 8 channels each)
+
+    //Open mappping files
+    ifstream hMappingX("mappingXnew.txt");
+    ifstream hMappingY("mappingYnew.txt");
+
+    bool isIn; //from input mapping (first column tells us if the strip is to be considered for analysis or not)
+    int strip, TDCchannel;
+
+    //Mapping of TDC channel <-> strip
+    int channelsX[MAX_SIZE], channelsY[MAX_SIZE];
+    int stripsX[MAX_SIZE], stripsY[MAX_SIZE];
+    int counterX = 0, counterY = 0;
+
+    while (hMappingX >> isIn >> strip >> TDCchannel) {
+        if (isIn) {
+            stripsX[counterX] = strip;
+            channelsX[counterX] = TDCchannel;
+            counterX++;
+        }
+    } 
+
+    while (hMappingY >> isIn >> strip >> TDCchannel) {
+        if (isIn) {
+            stripsY[counterY] = strip;
+            channelsY[counterY] = TDCchannel;
+            counterY++;
+        }
+    }
+
+    int size = 0; //variable used due to how DAQ code is written
+    //size is the number of fired strips in each trigger and it's
+    //needed while reading data from the DAQ TTree
+
+    int numTrigger = 0; //variable used to keep track of the number of triggers for each HV point 
+    //also saved in the DAQ tree
+
+    //Global path of where the files of an efficiency scan are saved
+    string folder = "/home/pcald32/runs/efficiencyScans/scan_"+to_string(scan)+"/";
+    string HVfile = "scan_" + to_string(scan) +"_CAEN_";
+    string DIPfile = "scan_" + to_string(scan) +"_DIP_";
+    string DAQfile = "scan_" + to_string(scan) +"_DAQ_";
+    
+    gSystem->cd(folder.c_str());
+    
+    //Count number of folders (one folder per HV value)
+    int nfolders = 0; //number of folders in the scan = number of hv points
+    for (auto const& dir_entry :std::filesystem::directory_iterator{folder}) {
+    	nfolders++;
+    }
+
+    //Loop on all folders
+    //for (int hv = 0; hv < nfolders; hv++) {
+    TH1F *hTimeTDC1 = new TH1F("hTimeTDC1","hTimeTDC1",200,-0.5,199.5);
+    TH1F *hTimeTDC2 = new TH1F("hTimeTDC2","hTimeTDC2",200,-0.5,199.5);
+    TH1F *hTimeTDC3 = new TH1F("hTimeTDC3","hTimeTDC3",200,-0.5,199.5);
+
+    TH1F *hHitTDC1 = new TH1F("hHitTDC1","hHitTDC1",24,-0.5,23.5);
+    TH1F *hHitTDC2 = new TH1F("hHitTDC2","hHitTDC2",24,-0.5,23.5);
+    TH1F *hHitTDC3 = new TH1F("hHitTDC3","hHitTDC3",24,-0.5,23.5);
+
+    for (int hv = 0; hv < nfolders; hv++) {
+
+        //Add suffix to files, according to the folder
+        HVfile += "HV" + to_string(hv+1) + ".root";
+        DIPfile += "HV" + to_string(hv+1) + ".root";
+        DAQfile += "HV" + to_string(hv+1) + ".root";
+
+        if (lowLevelDebug) { //print names of input files
+            cout << HVfile << endl;
+            cout << DIPfile << endl;
+            cout << DAQfile << endl;
+        }
+        
+        TFile *fHV = new TFile((folder + "HV_" + to_string(hv+1) + "/" + HVfile).c_str(),"READ");
+        TFile *fDIP = new TFile((folder + "HV_" + to_string(hv+1) + "/" + DIPfile).c_str(),"READ");
+        TFile *fDAQ = new TFile((folder + "HV_" + to_string(hv+1) + "/" + DAQfile).c_str(),"READ");
+
+        //----------------//
+        //  Open HV file  //
+        //----------------//
+        fHV->cd();
+
+        //------------------//
+        //  Open DIP file   //
+        //------------------//
+        fDIP->cd();
+
+        //------------------//
+        //  Open DAQ file   //
+        //------------------//
+        fDAQ->cd();
+        TTree *treeDAQ = (TTree*)fDAQ->Get("treeDAQ");
+        treeDAQ->SetBranchAddress("size", &size);
+
+        for (int entry = 0; entry < treeDAQ->GetEntries(); entry++) {
+            treeDAQ->GetEntry(entry);
+
+            int channel[MAX_SIZE];
+            float time[MAX_SIZE];
+            
+            treeDAQ->SetBranchAddress("channels",channel);
+            treeDAQ->SetBranchAddress("times",time);
+
+            for (int i = 0; i < size; i++) {
+                cout << time[i] << "\t" << channel[i] << "\n";
+                
+                if (channel[i] >= 0 && channel[i] <= 7) {
+                    hTimeTDC1->Fill(time[i]);
+                    hHitTDC1->Fill(channel[i]);
+                }
+
+                else if (channel[i] >= 8 && channel[i] <= 15) {
+                    hTimeTDC2->Fill(time[i]);
+                    hHitTDC2->Fill(channel[i]);
+                }
+
+                if (channel[i] >= 16 && channel[i] <= 23) {
+                    hTimeTDC3->Fill(time[i]);
+                    hHitTDC3->Fill(channel[i]);
+                }
+            }
+
+            cout << endl;
+            
+        } //End of loop on TTree entries
+
+        //End of the loop, delete all objects and rename strings for different .root objects inputs
+        HVfile = "scan_" + to_string(scan) +"_CAEN_";
+        DIPfile = "scan_" + to_string(scan) +"_DIP_";
+        DAQfile = "scan_" + to_string(scan) +"_DAQ_";
+
+    } //End of loop on HV points
+
+    new TCanvas();
+    hTimeTDC1->Draw("HISTO");
+    new TCanvas();
+    hHitTDC1->Draw("HISTO");
+    new TCanvas();
+    hTimeTDC2->Draw("HISTO");
+    new TCanvas();
+    hHitTDC2->Draw("HISTO");
+    new TCanvas();
+    hTimeTDC3->Draw("HISTO");
+    new TCanvas();
+    hHitTDC3->Draw("HISTO");
+
+}
+
+/*
     TH1D *hTimeStrip[16];
     //for (int i = 0; i < 16; i++) {
     //    hTimeStrip[i] =  new TH1D(("hTimeStrip_"+to_string(i)).c_str(),("hTimeStrip_"+to_string(i)).c_str(),100,0.,200.);
@@ -83,9 +240,10 @@ void labStrada3(){
     //vado nella cartella in cui è contenuto lo scan di efficienza
     gSystem->cd("/home/pcald32/runs/efficiencyScans/");
     //numero del run
-    int nrun;
-    cout<<"Inserire il numero del run: ";
-    cin>>nrun;
+    //int nrun;
+    //cout<<"Inserire il numero del run: ";
+    //cin>>nrun;
+    
     gSystem->cd(("scan_"+to_string(nrun)).c_str());
     cout<<("scan_"+to_string(nrun)).c_str()<<endl;
     //int a+1=0;
@@ -156,9 +314,7 @@ void labStrada3(){
                     stripsY.clear();
                 }
             }
-            
-            /*order(channelX.begin(), channelX.end());
-             order(channelY.begin(), channelY.end());*/
+        
 
                 if(channelX.size()!=0 && channelY.size()!=0){
                     countTrg = countTrg+1;
@@ -174,13 +330,13 @@ void labStrada3(){
                 countEv = countEv+1;
             }
 
-            /*if(channelX.size()!=0){ //X ONLY
-                countEv = countEv+1;
-            }*/
+            //if(channelX.size()!=0){ //X ONLY
+            //    countEv = countEv+1;
+            }
 
-            /*if(channelY.size()!=0){ //Y ONLY
-                countEv = countEv+1;
-            }*/
+            //if(channelY.size()!=0){ //Y ONLY
+            //    countEv = countEv+1;
+            //}
 
             int cluster = 1;
             for(int j=1; j<channelX.size();j++){
@@ -410,4 +566,4 @@ void labStrada3(){
         c2dCuts->cd();
         histo2Dcut->Draw("COLZ");
     
-}    
+}    */
