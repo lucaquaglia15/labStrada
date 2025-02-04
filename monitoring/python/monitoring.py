@@ -4,6 +4,7 @@ import mysql.connector #to connect to db to send the data
 import serial.tools.list_ports #for serial communication 
 import numpy as np
 from dotenv import dotenv_values
+import math
 
 #Define polynomial for conversion from mV to flow
 #coeff = 0.57
@@ -47,13 +48,18 @@ while True: #infinte loop to listen to data from arduino and post it to db
         print("Pressure = " + str(split_data[1]) + " mbar")
         print("Humidity = " + str(split_data[2]) + " %")
 
-        #val = (split_data[0],split_data[1]) #without humidity
-        val = (split_data[0],split_data[1],split_data[2]) #w humi
-        #sql = "INSERT INTO envPar (temperature, pressure) VALUES (%s, %s)" #sql query without humidity
-        sql = "INSERT INTO envPar (temperature, pressure, humidity) VALUES (%s, %s, %s)" #sql query w humidity
-        mycursor.execute(sql, val)
+        if math.isnan(float(split_data[0])) or math.isnan(float(split_data[1])) or math.isnan(float(split_data[2])):
+          print("nan value found")
+          continue
+        
+        else:
+          #val = (split_data[0],split_data[1]) #without humidity
+          val = (split_data[0],split_data[1],split_data[2]) #w humi
+          #sql = "INSERT INTO envPar (temperature, pressure) VALUES (%s, %s)" #sql query without humidity
+          sql = "INSERT INTO envPar (temperature, pressure, humidity) VALUES (%s, %s, %s)" #sql query w humidity
+          mycursor.execute(sql, val)
 
-        mydb.commit() #execute query
+          mydb.commit() #execute query
 
         """
         #Flow sensor
