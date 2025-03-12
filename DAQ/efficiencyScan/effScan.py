@@ -4,8 +4,6 @@ from typing import NewType
 from VME import VME #Python version of CAEN HV wrapper library
 from TDC import TDC #Functions specific to the V488A TDC module
 import numpy as np #numpy
-import ctypes #for C++ function binding (CAEN HV library for example)
-import pathlib #for library paths (to use C++ libraries in python)
 import mysql.connector #to connect to db to send the data
 import ROOT #Root CERN functions
 import time #For functions such as sleep
@@ -190,12 +188,7 @@ def main():
 
     print("Connecting to CAEN HV module")
     hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
- 
-    TDCs = [] #Empty list to define one TDC object for every TDC used in the DAQ
-    
-    for tdc in range(len(BA)):
-        TDCs.append(TDC(BA[tdc],lowTh[tdc],highTh[tdc],window[tdc],enablech[tdc],IRQ[tdc]))
-    
+
     #Connect to CAEN HV module
     handle = hvModule.connect()
     for slot in range(len(slots)):
@@ -203,6 +196,11 @@ def main():
             hvModule.setParameter(handle,slots[slot],b"Pw",channel,1)
             hvModule.setChName(handle,slots[slot],channel,chName[slot][iCh])
 
+    TDCs = [] #Empty list to define one TDC object for every TDC used in the DAQ
+    
+    for tdc in range(len(BA)):
+        TDCs.append(TDC(BA[tdc],lowTh[tdc],highTh[tdc],window[tdc],enablech[tdc],IRQ[tdc]))
+    
     #Define general filename for DIP .root output file
     dipOut = "scan_"+str(newRun)+"_DIP_"
     caenOut = "scan_"+str(newRun)+"_CAEN_"
@@ -210,6 +208,7 @@ def main():
 
     #Begin for cycle on HV points
     for i in range(int(len(constants.measTime))):
+        
         print("Number of triggers: ",trigNum[i])
 
         #Create TTree to save DAQ data
@@ -226,7 +225,7 @@ def main():
         
         #Configure TDCs
         print("\n configuring TDCs \n")
-
+        
         for tdc in range(len(BA)): #Sleep 1 second between each command
             TDCs[tdc].resetModule(VMEbridge,handle)
             time.sleep(1)
@@ -244,7 +243,7 @@ def main():
             time.sleep(1)
             TDCs[tdc].accessControlRegister(VMEbridge,handle,0)
             time.sleep(1)
-
+        
         print("\n Configuration done, starting scan \n")
         VMEbridge.resetScalerCount(handle)
         VMEbridge.confScaler(handle,0,0,1,0,0)
@@ -307,7 +306,7 @@ def main():
         hHumi.GetXaxis().SetCanExtend(True)
         hFlow = ROOT.TH1F("Flow_HV"+str(i+1),"Flow_HV"+str(i+1),1000,0,1)
         hFlow.GetXaxis().SetCanExtend(True)
-
+        
         #Get last PT values to apply initial correction to HV
         mydb.cmd_refresh(1)
         lastEnv = getPT(mycursor)
@@ -340,7 +339,7 @@ def main():
             print("CAEN HV module not connected")
             hvModule.disconnect(handle)
             sys.exit("Exiting current scan")
-
+                    
         #Sleep for 2 seconds since, if channels are already on, it takes a bit of time to change status from ON to Ramp UP/DOWN
         time.sleep(2)
 
@@ -438,15 +437,11 @@ def main():
                         globalIndex = globalIndex+1
 
                 VMEbridge.stopPulser(handle,0)
-
+            
             #1000 triggers in the VME scaler -> increase contaMille and reset internal counter
             if VMEbridge.readRegister(handle,0x1D) == int(hex(1000),16):
-                #print("\n Increasing contaMille:\n")
-                #print("Counts before: ", VMEbridge.readRegister(handle,0x1D))
                 contaMille = contaMille+1000
-                #print("Resetting scaler counter")
                 VMEbridge.resetScalerCount(handle)
-                #print("Counts after: ", VMEbridge.readRegister(handle,0x1D))
 
             if (contaMille + VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[i]),16): #For noise scans with > 4096 triggers
                 print("Desidered trigger number reached, moving to the next HV point, case 1")
@@ -461,6 +456,7 @@ def main():
                 nTriggers.Write()
                 treeDAQ.Write()
 
+                
                 fOutCAEN.cd()
                 ch = 0
                 for slot in range(len(slots)):
@@ -489,8 +485,6 @@ def main():
                 event = []
 
                 while IRQlevel != hex(0x0):
-                    #VMEbridge.disableIRQ(handle,111)
-
                     VMEbridge.startPulser(handle,0)
                     IRQvector = VMEbridge.iackCycle(handle,int(IRQlevel,16),0x01)
                     print("IRQ ricevuta")
@@ -554,6 +548,7 @@ def main():
                             print("contaMille, case 2: ",contaMille)
                             print("Numero di trigger impostati, case 2: ",int(hex(trigNum[i]),16))
                             print("Numero di trigger calcolati, case 2: ",contaMille + int(VMEbridge.readRegister(handle,0x1D)))
+                            
                             os.chdir(scanFol)
                             
                             fOutDAQ.cd()
@@ -561,6 +556,7 @@ def main():
                             nTriggers.Write()
                             treeDAQ.Write()
 
+                            
                             fOutCAEN.cd()
                             ch = 0
                             for slot in range(len(slots)):
@@ -576,6 +572,7 @@ def main():
                             hPress.Write("Pressure_HV_"+str(i+1))
                             hHumi.Write("Humidity_HV_"+str(i+1))
                             hFlow.Write("Flow_HV_"+str(i+1))
+                            
 
                             os.chdir("/home/pcald32/labStrada/DAQ/efficiencyScan")
                             finishedScan = True
