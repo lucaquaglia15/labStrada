@@ -15,7 +15,7 @@
 #include <TCanvas.h>
 #include "TNtuple.h"
 #include "TH1F.h"
-#include "TH2.h"
+#include "TH2F.h"
 #include "TMath.h"
 #include "TGraphErrors.h"
 #include "TStyle.h"
@@ -211,12 +211,22 @@ void analyzeEff(const int scan, const string detectorName){
 
     //Count number of folders (one folder per HV value)
     int nfolders = 0; //number of folders in the scan = number of hv points
+    string extension = "ot";
+    
+    //count how many points there are in the scan by counting the number of folders
+    //This part of the code counts only the folders and excludes .root files
     for (auto const& dir_entry :std::filesystem::directory_iterator{folder}) {
-    	nfolders++;
+        string fol = std::filesystem::path(dir_entry).filename().string();
+    	if(fol.compare(fol.size() - extension.size(), extension.size(), extension) != 0)
+        nfolders++;
     }
+    //for (auto const& dir_entry :std::filesystem::directory_iterator{folder}) {
+    //	nfolders++;
+    //}
 
     //Create .root output file 
-    TFile *fOut = new TFile(("OutFile_ALICE_" + to_string(scan) + ".root").c_str(),"RECREATE");
+    //TFile *fOut = new TFile(("OutFile_" + detectorName + "_" + to_string(scan) + "_onlyCentral.root").c_str(),"RECREATE");
+    TFile *fOut = new TFile(("OutFile_" + detectorName + "_" + to_string(scan) + ".root").c_str(),"RECREATE");
     fOut->cd();
     TDirectory *cdtof[nfolders]; //Crate an array of folders that will be created inside the .root output file
 
@@ -231,6 +241,11 @@ void analyzeEff(const int scan, const string detectorName){
     TH1F *strp_profile_ALICE_muonsY[nfolders]; //Muon strip profile - Y plane
 	TH1F *muon_cluster_size_ALICEY[nfolders]; //Muon cluster size histo - Y plane
 	TH1F *muon_cluster_mult_ALICEY[nfolders]; //Muon cluster mult histo - Y plane
+
+    //One histo per strip, to study time distribution
+    TH1F *time_profile_per_strip[nfolders][MAX_SIZE]; //Muon cluster mult histo - Y plane
+    TH2F *time_profile_strip_2D;
+    
     //Temporary histos in case of fit failure
     TH1F *strp_profile_ALICE_tmpX; //Temporary strip profile histo if fit fails - X plane
 	TH1F *time_profile_ALICE_tmpX; //Temporary time profile histo if fit fails - X plane
@@ -250,7 +265,12 @@ void analyzeEff(const int scan, const string detectorName){
     vector <float> EffX,EffY,Eff2D;
     vector <float> e_EffX, e_EffY, e_Eff2D;
 
+    vector<float> strips{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24};
+    vector<float> errStrip{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+    vector<float> meanTime, meanSTD;
+
     for (int hv = 0; hv < nfolders; hv++) {
+    //for (int hv = 0; hv < 16; hv++) {
 
         string cartella = "HV" + to_string(hv+1); //Name for folder and histograms
 
@@ -270,23 +290,54 @@ void analyzeEff(const int scan, const string detectorName){
         //TCanvas *c_time_profile_stripsX[16]; //Time profile for each strip - X plane
         //TCanvas *c_time_profile_stripsY[16]; //Time profile for each strip - Y plane
         //TCanvas *c_time_profile_ALICE_tmpX = produceCanvas(false,false); //Temporary time profile - x plane
-        //TCanvas *c_time_profile_ALICE_tmpY = produceCanvas(false,false); //Temporary time profile - Y plane 
+        //TCanvas *c_time_profile_ALICE_tmpY = produceCanvas(false,false); //Temporary time profile - Y plane
+        TCanvas *c_time_profile_per_strip_1_8 = produceCanvas(false,false);
+        TCanvas *c_time_profile_per_strip_9_16 = produceCanvas(false,false);
+        TCanvas *c_time_profile_per_strip_17_24 = produceCanvas(false,false);
+        //c_time_profile_per_strip->Divide(6,4); 
+        c_time_profile_per_strip_1_8->Divide(4,2);
+        c_time_profile_per_strip_9_16->Divide(4,2);
+        c_time_profile_per_strip_17_24->Divide(4,2);
+        TCanvas *c_time_strip_2D = produceCanvas(false,false);
 
         //Create histograms
-        time_profile_ALICEX[hv] = produceTH1("time_profile_X_"+cartella,"Time profile ALICE X " + cartella,"Time [ns]","Counts",200,-0.5,199.5);
-		time_profile_ALICEY[hv] = produceTH1("time_profile_Y_"+cartella,"Time profile ALICE Y " + cartella,"Time [ns]","Counts",200,-0.5,199.5);
-		strp_profile_ALICEX[hv] = produceTH1("strip_profile_all_hits_X"+cartella,"Strip profile ALICE X all hits " + cartella,"Strip","Counts",8,0.5,8.5);
-		strp_profile_ALICEY[hv] = produceTH1("strip_profile_all_hits_Y"+cartella,"Strip profile ALICE Y all hits " + cartella,"Strip","Counts",8,0.5,8.5);
-		strp_profile_ALICE_muonsX[hv] = produceTH1("strip_profile_muons_X"+cartella,"Strip profile ALICE X muons " + cartella,"Strip","Muon counts",8,0.5,8.5);
-		strp_profile_ALICE_muonsY[hv] = produceTH1("strip_profile_muons_Y"+cartella,"Strip profile ALICE Y muons " + cartella,"Strip","Muon counts",8,0.5,8.5);
-		muon_cluster_size_ALICEX[hv] = produceTH1("muon_cluster_size_X"+cartella,"Muon cluster size ALICE X " + cartella,"Muon cluster size [strips]","Counts",8,0,8);
-		muon_cluster_size_ALICEY[hv] = produceTH1("muon_cluster_size_Y"+cartella,"Muon cluster size ALICE Y " + cartella,"Muon cluster size [strips]","Counts",8,0,8);
-		muon_cluster_mult_ALICEX[hv] = produceTH1("muon_cluster_mult_X"+cartella,"Muon cluster multiplicity ALICE X " + cartella,"Muon cluster multiplicity","Counts",8,0,8);
-		muon_cluster_mult_ALICEY[hv] = produceTH1("muon_cluster_mult_Y"+cartella,"Muon cluster multiplicity ALICE Y " + cartella,"Muon cluster multiplicity","Counts",8,0,8);
-		time_profile_ALICE_tmpX = produceTH1("time_profile_X_temp_"+cartella,"Time profile ALICE X (temporary) " + cartella,"Time [ns]","Counts",200,-0.5,199.5);
-		time_profile_ALICE_tmpY = produceTH1("time_profile_Y_temp_"+cartella,"Time profile ALICE Y (temporary) " + cartella,"Time [ns]","Counts",200,-0.5,199.5);
-		strp_profile_ALICE_tmpX = produceTH1("strip_profile_all_hits_X_temp"+cartella,"Strip profile ALICE X all hits (temporary) " + cartella,"Strip","Counts",8,0.5,8.5);
-		strp_profile_ALICE_tmpY = produceTH1("strip_profile_all_hits_Y_temp"+cartella,"Strip profile ALICE Y all hits (temporary) " + cartella,"Strip","Counts",8,0.5,8.5);
+        //Binning for time profiles
+        float firstTimeProfileX = -0.5, lastTimeProfileX = 199.5; //-0.5 - 199.5 original
+        int nBinsTimeProfileX = lastTimeProfileX - firstTimeProfileX;
+        float firstTimeProfileY = -0.5, lastTimeProfileY = 199.5; //-0.5 - 199.5 original
+        int nBinsTimeProfileY = (lastTimeProfileY - firstTimeProfileY)*20;
+        //Binning for strip profiles
+        float firstStripX = 0.5, lastStripX = 24.5; //0.5 - 8.5 original
+        int nStripsX = lastStripX - firstStripX;
+        float firstStripY = 0.5, lastStripY = 24.5; //0.5 - 8.5 original
+        int nStripsY = lastStripY - firstStripY;
+        //Binning for cluster size/mult histograms
+        int firstClusterSizeX = 0, lastClusterSizeX = 24; //0 - 8 original
+        int nBinsClusterSizeX = lastClusterSizeX - firstClusterSizeX;
+        int firstClusterSizeY = 0, lastClusterSizeY = 24; //0 - 8 original
+        int nBinsClusterSizeY = lastClusterSizeY - firstClusterSizeY;
+
+        time_profile_ALICEX[hv] = produceTH1("time_profile_X_"+cartella,"Time profile ALICE X " + cartella,"Time [ns]","Counts",nBinsTimeProfileX,firstTimeProfileX,lastTimeProfileX);
+		time_profile_ALICEY[hv] = produceTH1("time_profile_Y_"+cartella,"Time profile ALICE Y " + cartella,"Time [ns]","Counts",nBinsTimeProfileY,firstTimeProfileY,lastTimeProfileY);
+		strp_profile_ALICEX[hv] = produceTH1("strip_profile_all_hits_X"+cartella,"Strip profile ALICE X all hits " + cartella,"Strip","Counts",nStripsX,firstStripX,lastStripX);
+		strp_profile_ALICEY[hv] = produceTH1("strip_profile_all_hits_Y"+cartella,"Strip profile ALICE Y all hits " + cartella,"Strip","Counts",nStripsY,firstStripY,lastStripY);
+        strp_profile_ALICE_muonsX[hv] = produceTH1("strip_profile_muons_X"+cartella,"Strip profile ALICE X muons " + cartella,"Strip","Muon counts",nStripsX,firstStripX,lastStripX);
+		strp_profile_ALICE_muonsY[hv] = produceTH1("strip_profile_muons_Y"+cartella,"Strip profile ALICE Y muons " + cartella,"Strip","Muon counts",nStripsY,firstStripY,lastStripY);
+		muon_cluster_size_ALICEX[hv] = produceTH1("muon_cluster_size_X"+cartella,"Muon cluster size ALICE X " + cartella,"Muon cluster size [strips]","Counts",nBinsClusterSizeX,firstClusterSizeX,lastClusterSizeX);
+		muon_cluster_size_ALICEY[hv] = produceTH1("muon_cluster_size_Y"+cartella,"Muon cluster size ALICE Y " + cartella,"Muon cluster size [strips]","Counts",nBinsClusterSizeY,firstClusterSizeY,lastClusterSizeY);
+		muon_cluster_mult_ALICEX[hv] = produceTH1("muon_cluster_mult_X"+cartella,"Muon cluster multiplicity ALICE X " + cartella,"Muon cluster multiplicity","Counts",nBinsClusterSizeX,firstClusterSizeX,lastClusterSizeX);
+		muon_cluster_mult_ALICEY[hv] = produceTH1("muon_cluster_mult_Y"+cartella,"Muon cluster multiplicity ALICE Y " + cartella,"Muon cluster multiplicity","Counts",nBinsClusterSizeY,firstClusterSizeY,lastClusterSizeY);
+		time_profile_ALICE_tmpX = produceTH1("time_profile_X_temp_"+cartella,"Time profile ALICE X (temporary) " + cartella,"Time [ns]","Counts",nBinsTimeProfileX,firstTimeProfileX,lastTimeProfileX);
+		time_profile_ALICE_tmpY = produceTH1("time_profile_Y_temp_"+cartella,"Time profile ALICE Y (temporary) " + cartella,"Time [ns]","Counts",nBinsTimeProfileY,firstTimeProfileY,lastTimeProfileY);
+		strp_profile_ALICE_tmpX = produceTH1("strip_profile_all_hits_X_temp"+cartella,"Strip profile ALICE X all hits (temporary) " + cartella,"Strip","Counts",nStripsX,firstStripX,lastStripX);
+		strp_profile_ALICE_tmpY = produceTH1("strip_profile_all_hits_Y_temp"+cartella,"Strip profile ALICE Y all hits (temporary) " + cartella,"Strip","Counts",nStripsY,firstStripY,lastStripY);
+
+        for (int strip = 0; strip < MAX_SIZE; strip++) {
+            time_profile_per_strip[hv][strip] = produceTH1("time_profile_strip_" + to_string(hv+1) + "_" +to_string(strip+1),"time_profile_strip_" + to_string(hv+1) + "_" +to_string(strip+1),"Time [ns]","Counts",400,-0.5,199.5);
+            cout << "time_profile_strip_" + to_string(hv+1) + "_" +to_string(strip+1) << endl;
+        }
+
+        time_profile_strip_2D = new TH2F(("time_profile_strip_2D_"+cartella).c_str(),("time_profile_strip_2D_"+cartella).c_str(),24,0.5,24.5,200,-0.5,199.5);
 
         //Add suffix to files, according to the folder
         HVfile += "HV" + to_string(hv+1) + ".root";
@@ -347,7 +398,13 @@ void analyzeEff(const int scan, const string detectorName){
             treeDAQ->SetBranchAddress("times",time);
 
             for (int i = 0; i < size; i++) {
+                
                 cout << time[i] << "\t" << channel[i] << "\n";
+
+                //Fill time profile per strip with its corresponding time
+                if (channel[i] <= 23) {
+                    time_profile_per_strip[hv][channel[i]]->Fill(time[i]);
+                }
                 
                 if (channel[i] >= instripX && channel[i] <= finstripX) {
                     strp_profile_ALICEX[hv]->Fill(strp_mapX.lower_bound(channel[i])->second); //Strip profile of all hits in muon spill
@@ -355,10 +412,10 @@ void analyzeEff(const int scan, const string detectorName){
                 }
 
                 else if (channel[i] >= instripY && channel[i] <= finstripY) {
-                    //if (channel[i] != 9) {
                     strp_profile_ALICEY[hv]->Fill(strp_mapY.lower_bound(channel[i])->second); //Strip profile of all hits in muon spill
                     time_profile_ALICEY[hv]->Fill(time[i]);//Time profile of the chamber in the muon spill
-                    //} 
+                    cout << time_profile_ALICEY[hv] << endl;
+                    time_profile_strip_2D->Fill(strp_mapY.lower_bound(channel[i])->second,time[1]);
                 }
             }
 
@@ -366,25 +423,52 @@ void analyzeEff(const int scan, const string detectorName){
             
         } //End of loop on TTree entries
 
+        for (int zz = 0; zz < MAX_SIZE; zz++) {
+            if (zz <= 7) {
+                c_time_profile_per_strip_1_8->cd(zz+1);
+                time_profile_per_strip[hv][zz]->Draw("HISTO");
+            }
+            else if (zz > 7 && zz <= 15) {
+                c_time_profile_per_strip_9_16->cd(zz-7);
+                time_profile_per_strip[hv][zz]->Draw("HISTO");
+            }
+            else {
+                c_time_profile_per_strip_17_24->cd(zz-15);
+                if (zz == 23) {
+                    time_profile_per_strip[hv][23]->Draw("HISTO");
+                }
+
+                else {
+                    time_profile_per_strip[hv][zz]->Draw("HISTO");
+                }
+            }
+            meanTime.push_back(time_profile_per_strip[hv][zz]->GetMean());
+            meanSTD.push_back(time_profile_per_strip[hv][zz]->GetStdDev());
+        }
+
         tuple<double,double,double> muonWindowX;
 		tuple<double,double,double> muonWindowY;
         int fitStatusX = 0, fitStatusY = 0;
 
-		muonWindowX = findMuonWindow(time_profile_ALICEX[hv],fMuon_gammaX,fitStatusX,140.,160.,1.,40.);
-        if (scan == 413 && hv != 7) {
-            muonWindowY = findMuonWindow(time_profile_ALICEY[hv],fMuon_gammaY,fitStatusY,150.,180.,1.,40.);
-        }
-        else if (scan == 413 && hv == 7) {
-            muonWindowY = findMuonWindow(time_profile_ALICEY[hv],fMuon_gammaY,fitStatusY,120.,160.,1.,40.);
-        }
+		//muonWindowX = findMuonWindow(time_profile_ALICEX[hv],fMuon_gammaX,fitStatusX,140.,160.,1.,40.);
+        
+        //muonWindowY = findMuonWindow(time_profile_ALICEY[hv],fMuon_gammaY,fitStatusY,140.,180.,1.,40.);
+        
+        //float startMuonX = get<0>(muonWindowX);
+		//float endMuonX = get<1>(muonWindowX);
+		//float meanX = get<2>(muonWindowX);
+        
+        float startMuonX = 0;
+		float endMuonX = 200;
+		float meanX = 100;
 
-        float startMuonX = get<0>(muonWindowX);
-		float endMuonX = get<1>(muonWindowX);
-		float meanX = get<2>(muonWindowX);
+        //float startMuonY = get<0>(muonWindowY);
+		//float endMuonY = get<1>(muonWindowY);
+		//float meanY = get<2>(muonWindowY);
 
-        float startMuonY = get<0>(muonWindowY);
-		float endMuonY = get<1>(muonWindowY);
-		float meanY = get<2>(muonWindowY);
+        float startMuonY = 0;
+		float endMuonY = 200;
+		float meanY = 100;
 
         //Re-process data after time profile fit -> Only hits in the muon window
         for (int entry = 0; entry < treeDAQ->GetEntries(); entry++) { 
@@ -420,7 +504,7 @@ void analyzeEff(const int scan, const string detectorName){
             if(muon_hitsX.size()!=0){
                 vector <double> clusterX;
                 clusterX=clustering(muon_hitsX);
-                muon_cluster_size_ALICEX[hv]->FillN(clusterX.size(),clusterX.data(),nullptr);//tutti pesano 1
+                muon_cluster_size_ALICEX[hv]->FillN(clusterX.size(),clusterX.data(),nullptr);//All weights set to 1
                 muon_cluster_mult_ALICEX[hv]->Fill(clusterX.size());
             }
 
@@ -428,7 +512,7 @@ void analyzeEff(const int scan, const string detectorName){
             if(muon_hitsY.size()!=0){
                 vector <double> clusterY;
                 clusterY=clustering(muon_hitsY);
-                muon_cluster_size_ALICEY[hv]->FillN(clusterY.size(),clusterY.data(),nullptr);//tutti pesano 1
+                muon_cluster_size_ALICEY[hv]->FillN(clusterY.size(),clusterY.data(),nullptr);//All weights set to 1
                 muon_cluster_mult_ALICEY[hv]->Fill(clusterY.size());
             }
 
@@ -495,12 +579,6 @@ void analyzeEff(const int scan, const string detectorName){
         c_cluster_mult_muon_ALICEX->cd(); //Muon cluster multiplicity - X plane
         muon_cluster_mult_ALICEX[hv]->Draw("HISTO");
         
-        c_cluster_size_muon_ALICEY->cd(); //Muon cluster size - Y plane
-        muon_cluster_size_ALICEY[hv]->Draw("HISTO");
-        
-        c_cluster_mult_muon_ALICEY->cd(); //Muon cluster multiplicity - Y plane
-        muon_cluster_mult_ALICEY[hv]->Draw("HISTO");
-        
         //Y-plane
         c_time_profile_ALICEY->cd(); //Time profile - Y plane
         time_profile_ALICEY[hv]->Draw("HISTO");
@@ -518,9 +596,26 @@ void analyzeEff(const int scan, const string detectorName){
         c_cluster_mult_muon_ALICEY->cd(); //Muon cluster multiplicity - Y plane
         muon_cluster_mult_ALICEY[hv]->Draw("HISTO");
 
+        //Draw 2D correlation histo strip-time
+        c_time_strip_2D->cd();
+        time_profile_strip_2D->Draw("COLZ");
+
+        new TCanvas();
+        time_profile_per_strip[hv][23]->SetBinContent(50,100.);
+        time_profile_per_strip[hv][23]->Draw("HISTO");
+        std::cout << "time_profile_per_strip[0][23] address: " << time_profile_per_strip[hv][23] << std::endl;
+        std::cout << "time_profile_ALICEY[hv] address: " << time_profile_ALICEY[hv] << std::endl;
+
         //Save the canvases in the .root output file
         fOut->cd();
         cdtof[hv]->cd();
+
+        c_time_profile_per_strip_1_8->Write(("Time_profile_per_strip_1_8_" + cartella).c_str());
+        c_time_profile_per_strip_9_16->Write(("Time_profile_per_strip_9_16_" + cartella).c_str());
+        c_time_profile_per_strip_17_24->Write(("Time_profile_per_strip_17_24_" + cartella).c_str());
+
+        //c_time_strip_2D->Write(("Time_strip_correlation_" + cartella).c_str());
+
         c_time_profile_ALICEX->Write(("Time_profile_ALICE_X_" + cartella).c_str());
         c_strp_profile_ALICEX->Write(("Strip_profile_ALICE_X_" + cartella).c_str());
         c_strp_profile_ALICE_muonsX->Write(("Strip_muons_profile_ALICE_X_" + cartella).c_str());
@@ -531,7 +626,7 @@ void analyzeEff(const int scan, const string detectorName){
         c_strp_profile_ALICEY->Write(("Strip_profile_ALICE_Y_" + cartella).c_str());
         c_strp_profile_ALICE_muonsY->Write(("Strip_muons_profile_ALICE_Y_" + cartella).c_str());
         c_cluster_size_muon_ALICEY->Write(("Cluster_size_muon_ALICE_Y_" + cartella).c_str());
-        c_cluster_size_muon_ALICEY->Write(("Cluster_mult_muon_ALICE_Y_" + cartella).c_str());
+        c_cluster_mult_muon_ALICEY->Write(("Cluster_mult_muon_ALICE_Y_" + cartella).c_str());
 
         //End of the loop, delete all objects and rename strings for different .root objects inputs
         HVfile = "scan_" + to_string(scan) +"_CAEN_";
@@ -544,7 +639,7 @@ void analyzeEff(const int scan, const string detectorName){
     TCanvas *efficiency_HV = produceCanvas(false,false);
     efficiency_HV->cd();
     TGraph *gEff2D= new TGraphErrors(HVeff.size(), &HVeff[0], &Eff2D[0],&eHVeff[0],&e_Eff2D[0]);
-    gEff2D->SetTitle("Efficienza(HV) di X e Y; HV; efficienza");
+    gEff2D->SetTitle("X and Y Efficiency vs HV eff; HV_{eff} [V]; Efficiency");
     gEff2D->SetMarkerStyle(8);
     gEff2D->SetMarkerSize(2);
     gEff2D->GetYaxis()->SetRangeUser(0,1);
@@ -553,7 +648,7 @@ void analyzeEff(const int scan, const string detectorName){
     TCanvas *efficiency_X = produceCanvas(false,false);
     efficiency_X->cd();
     TGraph *gEffX= new TGraphErrors(HVeff.size(), &HVeff[0], &EffX[0],&eHVeff[0],&e_EffX[0]);
-    gEffX->SetTitle("Efficienza(HV) di X; HV; efficienza");
+    gEffX->SetTitle("X Efficiency vs HV eff; HV_{eff} [V]; Efficiency");
     gEffX->SetMarkerStyle(8);
     gEffX->SetMarkerSize(2);
     gEffX->GetYaxis()->SetRangeUser(0,1);
@@ -562,7 +657,7 @@ void analyzeEff(const int scan, const string detectorName){
     TCanvas *efficiency_Y = produceCanvas(false,false);
     efficiency_Y->cd();
     TGraph *gEffY= new TGraphErrors(HVeff.size(), &HVeff[0], &EffY[0],&eHVeff[0],&e_EffY[0]);
-    gEffY->SetTitle("Efficienza(HV) di Y; HV; efficienza");
+    gEffY->SetTitle("Y Efficiency vs HV eff; HV_{eff} [V]; Efficiency");
     gEffY->SetMarkerStyle(8);
     gEffY->SetMarkerSize(2);
     gEffY->GetYaxis()->SetRangeUser(0,1);
@@ -571,7 +666,7 @@ void analyzeEff(const int scan, const string detectorName){
     TCanvas *c_cluster_sizeX = produceCanvas(false,false);
     c_cluster_sizeX->cd();
     TGraph *g_cluster_sizeX = new TGraphErrors(HVeff.size(),&HVeff[0],&cluster_sizeX[0],&eHVeff[0],&e_cluster_sizeX[0]);
-    g_cluster_sizeX->SetTitle("Cluster size X (HV);HV;cluster_size");
+    g_cluster_sizeX->SetTitle("X cluster size vs HV eff; HV_{eff} [V]; Cluster size [strips]");
     g_cluster_sizeX->SetMarkerStyle(8);
     g_cluster_sizeX->SetMarkerSize(2);
     g_cluster_sizeX->Draw("AP");
@@ -579,24 +674,54 @@ void analyzeEff(const int scan, const string detectorName){
     TCanvas *c_cluster_sizeY = produceCanvas(false,false);
     c_cluster_sizeY->cd();
     TGraph *g_cluster_sizeY = new TGraphErrors(HVeff.size(),&HVeff[0],&cluster_sizeY[0],&eHVeff[0],&e_cluster_sizeY[0]);
-    g_cluster_sizeY->SetTitle("Cluster size Y (HV); HV; cluster_size");
+    g_cluster_sizeY->SetTitle("Y cluster size vs HV eff; HV_{eff} [V]; Cluster size [strips]");
     g_cluster_sizeY->SetMarkerStyle(8);
     g_cluster_sizeY->SetMarkerSize(2);
     g_cluster_sizeY->Draw("AP");
 
+    TCanvas *c_cluster_multX = produceCanvas(false,false);
+    c_cluster_multX->cd();
+    TGraph *g_cluster_multX = new TGraphErrors(HVeff.size(),&HVeff[0],&cluster_multX[0],&eHVeff[0],&e_cluster_multX[0]);
+    g_cluster_multX->SetTitle("X cluster multiplicity vs HV eff; HV_{eff} [V]; Cluster multiplicity");
+    g_cluster_multX->SetMarkerStyle(8);
+    g_cluster_multX->SetMarkerSize(2);
+    g_cluster_multX->Draw("AP");
+
+    TCanvas *c_cluster_multY = produceCanvas(false,false);
+    c_cluster_multY->cd();
+    TGraph *g_cluster_multY = new TGraphErrors(HVeff.size(),&HVeff[0],&cluster_multY[0],&eHVeff[0],&e_cluster_multY[0]);
+    g_cluster_multY->SetTitle("Y cluster multiplicity vs HV eff; HV_{eff} [V]; Cluster multiplicity");
+    g_cluster_multY->SetMarkerStyle(8);
+    g_cluster_multY->SetMarkerSize(2);
+    g_cluster_multY->Draw("AP");
+
     TCanvas *c_iv=produceCanvas(false,false);
     c_iv->cd();
     TGraph *iv= new TGraphErrors(HVeff.size(),&HVeff[0],&Imon[0],&eHVeff[0], &eImon[0]);
-    iv->SetTitle("I(HV); HV; I");
+    iv->SetTitle("Current vs HV eff; HV_{eff} [V]; Current [#mu A]");
     iv->SetMarkerStyle(8);
     iv->SetMarkerSize(2);
     iv->Draw("AP");
 
+    TCanvas *cMeanTimePerStrip = produceCanvas(false,false);
+    cMeanTimePerStrip->cd();
+    TGraph *gMeanTimePerStrip= new TGraphErrors(meanTime.size(),&strips[0],&meanTime[0],&errStrip[0], &meanSTD[0]);
+    gMeanTimePerStrip->SetTitle("Current vs HV eff; Strip; Time [s]");
+    gMeanTimePerStrip->SetMarkerStyle(8);
+    gMeanTimePerStrip->SetMarkerSize(2);
+    gMeanTimePerStrip->Draw("AP");
+
     //Save canveses in the .root output file
     fOut->cd();
-    efficiency_HV->Write(("Grafico_eff_XY_"+ to_string(scan)).c_str());
+    efficiency_HV->Write(("Efficiency_X_and_Y_"+ to_string(scan)).c_str());
+    efficiency_X->Write(("Efficiency_X_" + to_string(scan)).c_str());
+    efficiency_Y->Write(("Efficiency_Y_" + to_string(scan)).c_str());
     c_cluster_sizeX->Write(("Cluster_size_X_HV_"+ to_string(scan)).c_str());
+    c_cluster_multX->Write(("Cluster_mult_X_HV_"+ to_string(scan)).c_str());
     c_cluster_sizeY->Write(("Cluster_size_Y_HV"+ to_string(scan)).c_str());
-    efficiency_X->Write(("Grafico_eff_X_" + to_string(scan)).c_str());
-    efficiency_Y->Write(("Grafico_eff_Y_" + to_string(scan)).c_str());
+    c_cluster_multY->Write(("Cluster_mult_Y_HV_"+ to_string(scan)).c_str());
+    c_iv->Write(("Current_HV_"+ to_string(scan)).c_str());
+    cMeanTimePerStrip->Write(("Mean_time_per_strip_"+ to_string(scan)).c_str());
+    fOut->Close();
+    
 }

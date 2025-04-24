@@ -14,3 +14,7 @@ DAQ/efficiencyScan/constants.py
 monitoring/python/constants.py
 *.xlsx#
 *.json
+analysis/efficiency/mappingX.txt
+analysis/efficiency/mappingY.txt
+config/TDCconfig.txt
+config/configEffScan.txt

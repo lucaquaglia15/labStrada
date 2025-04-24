@@ -35,6 +35,7 @@ void curr(const int scan, const string detector) {
     string extension = "ot";
     
     //count how many points there are in the scan by counting the number of folders
+    //This part of the code counts only the folders and excludes .root files
     int nfolders = 0; //number of folders in the scan = number of hv points
     for (auto const& dir_entry :std::filesystem::directory_iterator{folder}) {
         //str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
