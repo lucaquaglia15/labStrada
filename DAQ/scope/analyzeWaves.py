@@ -48,14 +48,13 @@ def main():
 
     #[time[i] for i in range(len(time)) if (i + 1) % n != 0]
 
+    #Calculate average of noise window
+    for 
+
     
     figTest, axTest = plt.subplots(figsize=(10, 10))
     axTest.plot(generalTime, eventsCh1[0], marker='o', linestyle='-', color = 'r', label='CH1')
-    axTest.plot(generalTime, eventsCh4[0], marker='o', linestyle='-', color = 'g', label='CH4')
-
-    #Format the x-axis to show time and rotate labels
-    #axTest.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
-    #plt.xticks(rotation=45)
+    axTest.plot(generalTime, eventsCh4[0], marker='o', linestyle='-', color = 'g', label='CH4')4444
 
     #Cosmetics
     plt.xlabel('Time [ns]')
