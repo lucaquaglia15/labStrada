@@ -418,10 +418,10 @@ def main():
            
                 for slot in range(len(slots)):
                     for iCh, channel in enumerate(channels[slot]):
-                        print("i",i)
-                        print("slot",slot)
-                        print("iCh",iCh)
-                        print("channel",channel)
+                        #print("i",i)
+                        #print("slot",slot)
+                        #print("iCh",iCh)
+                        #print("channel",channel)
                         hvApp = ptCorr(temperature, pressure, float(effHV[slot][iCh+(i*len(channels[slot]))]))
                         hvModule.setParameter(handle,slots[slot],b"V0Set",channel,hvApp)
                         
@@ -433,7 +433,7 @@ def main():
                         hHVmon[globalIndex].Fill(hvMon)
                         hImon[globalIndex].Fill(iMon)
                         hHVapp[globalIndex].Fill(hvSet)
-                        print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
+                        #print("Slot",slots[slot],"channel",channel,"hveff",effHV[slot][iCh+(i*len(channels[slot]))],"hvApp",hvApp)
                         globalIndex = globalIndex+1
 
                 VMEbridge.stopPulser(handle,0)
@@ -485,7 +485,7 @@ def main():
                 event = []
 
                 while IRQlevel != hex(0x0):
-                    VMEbridge.startPulser(handle,0)
+                    #VMEbridge.startPulser(handle,0)
                     IRQvector = VMEbridge.iackCycle(handle,int(IRQlevel,16),0x01)
                     print("IRQ ricevuta")
                     print("IRQvector: ",IRQvector) 
@@ -502,12 +502,16 @@ def main():
                         whichTDC = 2
 
                     header = TDCs[whichTDC].readOutputBuffer(VMEbridge,handle)
-                    print("\n", "Header 0:",header[0],"\n")
+                    #print(header)
+                    #print("\n", "Header 0:",header[0],"\n")
                     
                     for ch in range(header[0]):
-                        print("ch", ch)
+                        #print("ch", ch)
                         event.append(TDCs[whichTDC].readOutputBuffer(VMEbridge,handle))
                         #print("\ntime:",TDCs[whichTDC].converter(TDCs[whichTDC].readOutputBuffer(VMEbridge,handle)))
+
+                    now = datetime.now().timestamp()
+                    print(int(header[1],2),now)
 
                     print("\n",event,"\n")
 
@@ -515,9 +519,14 @@ def main():
                     print("IRQ level a fine loop ",IRQlevel)
                     
                     if IRQlevel == hex(0x0):
-                        print(type(event), event)
+                        if len(event) == 1:
+                            print(header[1])
+                            print("\n",event,"\n")
+                            print("evento finito")
+                        
+                        #print(type(event), event)
                         lChannels,lTimes = map(list,zip(*event))
-                        print(lChannels, lTimes)
+                        #print(lChannels, lTimes)
                         
                         size[0] = len(lChannels)
                         
@@ -526,10 +535,10 @@ def main():
                             aChannels.append(lChannels[j])
                             aTimes.append(lTimes[j])
                         
-                        if debug:
-                            print("memory address of a",hex(id(a)))
-                            print("channels as array before: ",aChannels, type(aChannels))
-                            print("times as array before: ",aTimes, type(aTimes))
+                        #if debug:
+                        #    print("memory address of a",hex(id(a)))
+                        #    print("channels as array before: ",aChannels, type(aChannels))
+                        #   print("times as array before: ",aTimes, type(aTimes))
                         
                         treeDAQ.SetBranchAddress('channels',aChannels)
                         treeDAQ.SetBranchAddress('times',aTimes)
@@ -540,8 +549,8 @@ def main():
                         del aTimes[:]
                         del event[:]
 
-                        print("\n\n scaler counts nel loop :", VMEbridge.readRegister(handle,0x1D),"\n\n")
-                        print("contamille",contaMille)
+                        #print("\n\n scaler counts nel loop :", VMEbridge.readRegister(handle,0x1D),"\n\n")
+                        #print("contamille",contaMille)
 
                         if (contaMille + VMEbridge.readRegister(handle,0x1D))>=int(hex(trigNum[i]),16): #For noise scans with > 4096 triggers
                             print("Desidered trigger number reached, moving to the next HV point, case 2")
@@ -579,7 +588,8 @@ def main():
 
                         VMEbridge.enableIRQ(handle,111)
                         #event.clear()
-                        time.sleep(1)                            
+                        
+                        #time.sleep(1)                            
             
             #check if number of triggers has reached the desired value and the last 
             #trigger was processed by the DAQ            
