@@ -18,3 +18,4 @@ analysis/efficiency/mappingX.txt
 analysis/efficiency/mappingY.txt
 config/TDCconfig.txt
 config/configEffScan.txt
+analysis/efficiency/renameEff.C
