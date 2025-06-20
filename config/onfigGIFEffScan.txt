@@ -1,0 +1,2 @@
+HVeff1	meas	wait	beamTrg rndmTrg
+100	60	5	500 	1000
