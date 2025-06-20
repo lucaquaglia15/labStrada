@@ -78,13 +78,14 @@ def main():
     channels = constants.channels #HV channels
     chName = []
     chName = constants.names #Channels name
-    trigNum = []
+    beamTrigNum = []
+    rndmTrigNum = []
 
     #Calculate total number of channels to set proper HV values later on
     totChannels = sum([len(i) for i in channels])
 
     #Get the configuration of the run from the config file
-    with open("/home/pcald32/labStrada/config/configEffScan.txt") as configFile:
+    with open("/home/pcald32/labStrada/config/configGIFEffScan.txt") as configFile:
         scanPoints = configFile.readlines()
         scanPoints.pop(0)
         
@@ -111,9 +112,10 @@ def main():
                     effHV[slot].append(asList[iCh])
                     iCh = iCh+1
 
-            constants.measTime.append(asList[length-3])
-            constants.waitTime.append(asList[length-2])
-            trigNum.append(int(asList[length-1].replace("\n", "")))
+            constants.measTime.append(asList[length-4])
+            constants.waitTime.append(asList[length-3])
+            beamTrigNum.append(int(asList[length-1]))
+            rndmTrigNum.append(int(asList[length-1].replace("\n", "")))
 
     print("Connecting to CAEN HV module")
     hvModule = CAEN(b"90.147.203.174",b"admin",b"admin")
@@ -126,7 +128,7 @@ def main():
             hvModule.setChName(handle,slots[slot],channel,chName[slot][iCh])
 
     #Create folder to save the data locally
-    newRun = 1
+    newRun = 2
     newPath = "/home/pcald32/runs/digitizer/scan_"+str(newRun) 
     if not os.path.exists(newPath):
         os.makedirs(newPath)
@@ -135,8 +137,10 @@ def main():
     for i in range(int(len(constants.measTime))):
 
         print("Scanning HV point: ", i+1)
-
-        print("Number of triggers: ",trigNum[i])
+        print("\n")
+        print("Number of beam triggers: ",beamTrigNum[i])
+        print("Number of random triggers: ",rndmTrigNum[i])
+        print("\n")
 
         #Create HV1, HV2,... folders in the run folder
         scanFol = "/home/pcald32/runs/digitizer/scan_"+str(newRun)+"/HV_"+str(i+1)+"/"
@@ -241,7 +245,7 @@ def main():
         #                         #
         ###########################
 
-        cmd = ['/home/pcald32/wavedump-3.10.6/src/./wavedump', '/home/pcald32/wavedump-3.10.6/WaveDumpConfig.txt', str(trigNum[i]),scanFol]
+        cmd = ['/home/pcald32/wavedump-3.10.6/src/./wavedump', '/home/pcald32/wavedump-3.10.6/WaveDumpConfig.txt', str(beamTrigNum[i]),str(rndmTrigNum[i]),scanFol]
         pWaveDump = sb.Popen(cmd)
 
         stampa = True
