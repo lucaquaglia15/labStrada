@@ -56,7 +56,7 @@ class TDC:
 
 	#Read module identifier words
 	def idWords(self,address):
-		print("Addess requested:",address)
+		print("Address requested:",address)
 		
 		if address == 0xFA:
 			print("Address corresponds to a fixed code")
@@ -135,25 +135,25 @@ class TDC:
 
 		#to write result eactly as a 16 bit binary number (leading 0's)
 		data = '{0:016b}'.format(VMEbridge.read(handle,self.baseAddress,0x18,AM,DW)) 
-		print("data",data)
+		#print("data",data)
+		
 		if int(data[0]) == 1: #header
-			print("HEADER")
+			#print("HEADER")
 			mult = ""
 			evNum = ""
 			for i in range(3):
 				mult = mult + data[i+1]
 
 			for i in range(12):
-				print(i)
+				#print(i)
 				evNum = evNum + data[i+4]
 
-			print("Molteplicità :", int(mult,2)+1)
-			print("Trigger number: ",evNum)
-			#print(int(mult,10)+1)
+			#print("Molteplicità :", int(mult,2)+1)
+			#print("Trigger number: ",evNum)
 			return [int(mult,2)+1,int(evNum,10)]
 		
 		elif int(data[0]) == 0: #event
-			print("Event")
+			#print("Event")
 			ch = ""
 			time = ""
 			for i in range(3):
@@ -162,24 +162,24 @@ class TDC:
 			for i in range(12):
 				time = time+data[i+4]
 			
-			print("channel: ",type(int(ch,2)), " ", int(ch,2))
-			print("time: ",int(time,2))
+			#print("channel: ",type(int(ch,2)), " ", int(ch,2))
+			#print("time: ",int(time,2))
 			
 			eventTime = self.converter(int(time,2))
 			
 			if hex(self.baseAddress) == hex(0x02000000):
-				print("Channel with sum: ",int(ch,2))
+				#print("Channel with sum: ",int(ch,2))
 				return [int(ch,2),eventTime]
 			elif hex(self.baseAddress) == hex(0x03000000):
-				print("Channel with sum: ",int(ch,2)+8)
+				#print("Channel with sum: ",int(ch,2)+8)
 				return [int(ch,2)+8,eventTime]
 			elif hex(self.baseAddress) == hex(0x04000000):
-				print("Channel with sum: ",int(ch,2)+16)
+				#print("Channel with sum: ",int(ch,2)+16)
 				return [int(ch,2)+16,eventTime]
 	
 	def converter(self,eventTime):
 			convfactor = 3.6/4096
-			print(self.timeWindow, eventTime)
+			#print(self.timeWindow, eventTime)
 			tw = 3840/((-0.16821274*self.timeWindow)+(3840/90))
 
 			tensione = convfactor*eventTime 

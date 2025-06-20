@@ -116,7 +116,8 @@ class VME:
 	#Perform read cycle at given address
 	def read(self,handle,baseAddress,address,AM,DW):
 
-		print("Reading baseAddress",hex(baseAddress),"address",hex(address))
+		if debug:
+			print("Reading baseAddress",hex(baseAddress),"address",hex(address))
 		
 		cAddress = ctypes.c_uint32(baseAddress+address)
 		cAM =  ctypes.c_uint(AM)
@@ -333,8 +334,7 @@ class VME:
 		if debug:
 			print("ret in enableIRQ: ",ret)
 			print(VMEcodes[ret])
-
-		print("Enabling IRQ on lines",mask)
+			print("Enabling IRQ on lines",mask)
 
 	#Disable IRQ check
 	def disableIRQ(self,handle,mask):
