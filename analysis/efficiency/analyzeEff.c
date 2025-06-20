@@ -269,8 +269,8 @@ void analyzeEff(const int scan, const string detectorName){
     vector<float> errStrip{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
     vector<float> meanTime, meanSTD;
 
-    for (int hv = 0; hv < nfolders; hv++) {
-    //for (int hv = 0; hv < 16; hv++) {
+    //for (int hv = 0; hv < nfolders; hv++) {
+    for (int hv = 0; hv < 1; hv++) {
 
         string cartella = "HV" + to_string(hv+1); //Name for folder and histograms
 
@@ -334,7 +334,7 @@ void analyzeEff(const int scan, const string detectorName){
 
         for (int strip = 0; strip < MAX_SIZE; strip++) {
             time_profile_per_strip[hv][strip] = produceTH1("time_profile_strip_" + to_string(hv+1) + "_" +to_string(strip+1),"time_profile_strip_" + to_string(hv+1) + "_" +to_string(strip+1),"Time [ns]","Counts",400,-0.5,199.5);
-            cout << "time_profile_strip_" + to_string(hv+1) + "_" +to_string(strip+1) << endl;
+            //cout << "time_profile_strip_" + to_string(hv+1) + "_" +to_string(strip+1) << endl;
         }
 
         time_profile_strip_2D = new TH2F(("time_profile_strip_2D_"+cartella).c_str(),("time_profile_strip_2D_"+cartella).c_str(),24,0.5,24.5,200,-0.5,199.5);
@@ -383,12 +383,20 @@ void analyzeEff(const int scan, const string detectorName){
 
         //Get number of triggers
         TParameter<float>* nTrg = (TParameter<float>*)fDAQ->Get("numTriggers");
-        float numTrg = nTrg->GetVal();
+        //float numTrg = nTrg->GetVal();
+        float numTrg = 298;
+        cout << "Trigger number " << numTrg << endl;
+        
 
         TTree *treeDAQ = (TTree*)fDAQ->Get("treeDAQ");
         treeDAQ->SetBranchAddress("size", &size);
 
         for (int entry = 0; entry < treeDAQ->GetEntries(); entry++) {
+            
+            if (entry == 0) {
+                continue;
+            }
+
             treeDAQ->GetEntry(entry);
 
             int channel[MAX_SIZE];
@@ -397,14 +405,18 @@ void analyzeEff(const int scan, const string detectorName){
             treeDAQ->SetBranchAddress("channels",channel);
             treeDAQ->SetBranchAddress("times",time);
 
+            if (size == 1) {
+                cout << "number of entries is 1" << endl;
+            }
+
             for (int i = 0; i < size; i++) {
                 
-                cout << time[i] << "\t" << channel[i] << "\n";
+                //cout << time[i] << "\t" << channel[i] << "\n";
 
                 //Fill time profile per strip with its corresponding time
-                if (channel[i] <= 23) {
+                /*if (channel[i] <= 23) {
                     time_profile_per_strip[hv][channel[i]]->Fill(time[i]);
-                }
+                }*/
                 
                 if (channel[i] >= instripX && channel[i] <= finstripX) {
                     strp_profile_ALICEX[hv]->Fill(strp_mapX.lower_bound(channel[i])->second); //Strip profile of all hits in muon spill
@@ -449,6 +461,8 @@ void analyzeEff(const int scan, const string detectorName){
         tuple<double,double,double> muonWindowX;
 		tuple<double,double,double> muonWindowY;
         int fitStatusX = 0, fitStatusY = 0;
+        
+        //cout << "Here" << endl;
 
 		//muonWindowX = findMuonWindow(time_profile_ALICEX[hv],fMuon_gammaX,fitStatusX,140.,160.,1.,40.);
         
@@ -459,7 +473,7 @@ void analyzeEff(const int scan, const string detectorName){
 		//float meanX = get<2>(muonWindowX);
         
         float startMuonX = 0;
-		float endMuonX = 200;
+		float endMuonX = 999;
 		float meanX = 100;
 
         //float startMuonY = get<0>(muonWindowY);
@@ -467,11 +481,16 @@ void analyzeEff(const int scan, const string detectorName){
 		//float meanY = get<2>(muonWindowY);
 
         float startMuonY = 0;
-		float endMuonY = 200;
+		float endMuonY = 999;
 		float meanY = 100;
 
         //Re-process data after time profile fit -> Only hits in the muon window
         for (int entry = 0; entry < treeDAQ->GetEntries(); entry++) { 
+
+            if (entry == 0) {
+                continue;
+            }
+
 			muon_hitsX.clear();
 			muon_hitsY.clear();
 
