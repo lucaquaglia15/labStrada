@@ -87,7 +87,7 @@ def main():
     #Output .root file
     fileOutput = ROOT.TFile("iHvScan.root","RECREATE")
     
-    #connects to the dd
+    #connects to the db
     mydb = mysql.connector.connect( #db object on localhost
         host="localhost",
         user="root",
