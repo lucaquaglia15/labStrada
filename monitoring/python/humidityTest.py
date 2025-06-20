@@ -4,6 +4,7 @@ import mysql.connector #to connect to db to send the data
 import serial.tools.list_ports #for serial communication 
 import numpy as np
 from dotenv import dotenv_values
+import math
 
 #Define polynomial for conversion from mV to flow
 #coeff = 0.57
@@ -13,7 +14,7 @@ p = np.poly1d([3.09333, -7.05143, 5.9581, 0.500571])
 ports = serial.tools.list_ports.comports() #returns a list of all com ports
 serialInst = serial.Serial() #create instance of serial port
 
-portVar = "/dev/ttyUSB1" #we know the arduino is on USB0 port
+portVar = "/dev/ttyUSB0" #we know the arduino is on USB0 port
 serialInst.baudrate = 9600 #boud rate of arduino
 serialInst.port = portVar #set port
 serialInst.open() #open serial port communication port
@@ -30,7 +31,7 @@ mydb = mysql.connector.connect( #db object on localhost
 mycursor = mydb.cursor()
 
 counter = 0 #alive counter
-direction = "IN"
+direction = "OUT"
 
 while True: #infinte loop to listen to data from arduino and post it to db
     if serialInst.in_waiting: #there is data in the buffer
@@ -41,27 +42,37 @@ while True: #infinte loop to listen to data from arduino and post it to db
         decodePacket = packet.decode('utf')
         print(packet.decode('utf'))
 
-        split_data = packet.decode('utf').split('x')
+        #split_data = packet.decode('utf').split('x')
+        split_data = packet.decode('utf').split('\n')
+        print("split_data",split_data)
+
+        if math.isnan(float(split_data[0])):
+          print("nan value found")
+          continue
         
         #temperature sensor
-        print("Humidity = " + str(split_data[0]) + " %")
-        print("Temperature = " + str(split_data[1]) + " °C")
-        print("Battery = " + str(split_data[2]))
-        print("VoltageIn = " + str(split_data[3]) + " V")
-        print("VoltageOut = " + str(split_data[4]) + " V")
-        print("envHumi = " + str(split_data[5]) + "%")
+        #print("Humidity = " + str(split_data[0]) + " %")
+        #print("Temperature = " + str(split_data[1]) + " °C")
+        #print("Battery = " + str(split_data[2]))
+        #print("VoltageIn = " + str(split_data[3]) + " V")
+        #print("VoltageOut = " + str(split_data[4]) + " V")
+        #print("envHumi = " + str(split_data[5]) + "%")
          
-        #Invert calibration function
-        p[0] = p[0]-float(split_data[3])
-        print(p[0])
-        print(p.r)
+        print("VoltageOut = " + str(split_data[0]) + " V")
 
+        #Invert calibration function
+        p[0] = p[0]-float(split_data[0])
+        print("p[0] ",p[0])
+        print("p.r ", p.r)
+
+        """
         airFlowIn = 0.
 
         for x in p.r:
             if x <= 1 and x >= 0:    
               airFlowIn = float(x)*60
         realFlowIn = airFlowIn/3.33
+        
         #0.71 for argon
         #3.33 for STD gas mixture
         #2.18 for ECO2
@@ -71,6 +82,7 @@ while True: #infinte loop to listen to data from arduino and post it to db
         p[0] = p[0]-float(split_data[4])
         print(p[0])
         print(p.r)
+        """
 
         airFlowOut = 0.
 
@@ -79,10 +91,16 @@ while True: #infinte loop to listen to data from arduino and post it to db
               airFlowOut = float(x)*60
         realFlowOut = airFlowOut/3.33
 
+        print("airFlowOut ",airFlowOut,"realFlowOut ",realFlowOut)
+
 
         #val = (split_data[0],split_data[1],split_data[2])
-        val = (split_data[0],split_data[1],direction,realFlowIn,realFlowOut,split_data[5])
-        sql = "INSERT INTO humidityTest (humidity, temperature, gasDirection, gasIn, gasOut, envHumi) VALUES (%s, %s, %s, %s, %s, %s)" #sql query
+        #val = (0,0,direction,0,realFlowOut,0)
+        #sql = "INSERT INTO humidityTest (humidity, temperature, gasDirection, gasIn, gasOut, envHumi) VALUES (%s, %s, %s, %s, %s, %s)" #sql query
+        val = (float(split_data[0]),airFlowOut,realFlowOut)
+        sql = "INSERT INTO flow (voltage, airFlow, realFlow) VALUES (%s, %s, %s)" #sql query
+
+
         mycursor.execute(sql, val)
 
         mydb.commit() #execute query
@@ -91,3 +109,7 @@ while True: #infinte loop to listen to data from arduino and post it to db
         
         counter += 1
         p[0] = 0.500571
+        
+        
+        
+        

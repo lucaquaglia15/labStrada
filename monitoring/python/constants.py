@@ -3,6 +3,6 @@
 #slot = [7] #HV slots
 slot = [5] #HV slots
 #channels = [[1]] #HV channels
-channels = [[3]] #HV channels
+channels = [[3,4]] #HV channels
 
 caenIPaddress = "90.147.203.174"
