@@ -540,7 +540,7 @@ def main():
                 print(f"Warning: {src_file} not found and was not copied.")
         
         #Step 4: Delete all .txt files
-        for i in range(16):
+        for i in range(8):
             file_to_delete = f"{arg1}wave_{i}.txt"
             if os.path.exists(file_to_delete):
                 os.remove(file_to_delete)
